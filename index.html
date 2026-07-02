@@ -14,7 +14,10 @@
     --bg:#f4faf6; --card:#ffffff; --line-tint:#e7f7ee;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  /* 日本語の折り返し: 見出しは語の途中で折らない(文節spanと併用) */
+  h1,h2,.fc .big{word-break:keep-all;overflow-wrap:anywhere}
+  .nb{display:inline-block}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Meiryo",sans-serif;
     color:var(--ink);background:var(--bg);line-height:1.75;-webkit-font-smoothing:antialiased;
@@ -94,8 +97,8 @@
   <div class="wrap">
     <div class="mascot">📚</div>
     <div class="badge">LINEで完結・アプリ不要</div>
-    <h1>欲しい問題を、<span class="em">文章でオーダー。</span><br>AIが作る、あなた専用ドリル。</h1>
-    <p class="lead">「こんな問題を出して」と伝えるだけ。AIがその通りの問題を作って、毎日LINEに届けます。</p>
+    <h1><span class="nb">欲しい問題を、</span><span class="nb em">文章でオーダー。</span><br><span class="nb">AIが作る、</span><span class="nb">あなた専用ドリル。</span></h1>
+    <p class="lead"><span class="nb">「こんな問題を出して」と</span><span class="nb">伝えるだけ。</span><br><span class="nb">AIがその通りの問題を作って、</span><span class="nb">毎日LINEに届けます。</span></p>
     <a class="btn" href="https://line.me/R/ti/p/@491crrfm">
       <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 5.7 2 10.2c0 4 3.6 7.4 8.5 8 .3.1.8.2.9.5.1.3.1.7 0 1l-.1.8c0 .3-.2 1 .9.5s5.7-3.4 7.8-5.8c1.4-1.5 2-3.1 2-4.9C22 5.7 17.5 2 12 2z"/></svg>
       LINEで友だち追加
@@ -107,8 +110,8 @@
 <section>
   <div class="wrap">
     <p class="kicker">一番の特徴</p>
-    <h2>問題集を探さない。<br>“欲しい問題”を文章で頼むだけ。</h2>
-    <p class="sec-sub">形式・出し方・答えさせ方まで、あなたの言葉でオーダーできます。</p>
+    <h2><span class="nb">問題集を探さない。</span><br><span class="nb">“欲しい問題”を</span><span class="nb">文章で頼むだけ。</span></h2>
+    <p class="sec-sub"><span class="nb">形式・出し方・答えさせ方まで、</span><span class="nb">あなたの言葉でオーダーできます。</span></p>
     <div class="order-demo">
       <div class="chat">
         <div class="bub me"><div class="who">あなた</div>韓国語の日常フレーズをカタカナで出して、意味を4択で</div>
@@ -129,7 +132,7 @@ D. すみません</div>
   <div class="wrap">
     <div class="fc">
       <div class="big">🧠 <span>忘却曲線</span>で、自動復習。</div>
-      <p>正解した問題は「卒業」。間違えた問題だけ、“忘れた頃”に自動で再出題します。ムリに詰め込まず、最小の労力で記憶に定着させる仕組みです。</p>
+      <p><span class="nb">正解した問題は「卒業」。</span><span class="nb">間違えた問題だけ、</span><span class="nb">“忘れた頃”に自動で再出題します。</span><br><span class="nb">ムリに詰め込まず、</span><span class="nb">最小の労力で</span><span class="nb">記憶に定着させる仕組みです。</span></p>
     </div>
   </div>
 </section>
@@ -137,7 +140,7 @@ D. すみません</div>
 <section style="padding-top:8px">
   <div class="wrap">
     <p class="kicker">できること</p>
-    <h2>学びを、ぜんぶLINEの中で。</h2>
+    <h2><span class="nb">学びを、ぜんぶ</span><span class="nb">LINEの中で。</span></h2>
     <p class="sec-sub"></p>
     <div class="grid">
       <div class="card"><span class="ic">✍️</span><h3>文章でオーダー</h3><p>テーマも出し方も自由に指定。あなた専用の問題をAIが生成。</p></div>
@@ -166,7 +169,7 @@ D. すみません</div>
 <section>
   <div class="wrap">
     <div class="cta-final">
-      <h2>あなた専用のドリルを、今すぐ。</h2>
+      <h2><span class="nb">あなた専用のドリルを、</span><span class="nb">今すぐ。</span></h2>
       <p>無料で始められます。まずはLINEで友だち追加。</p>
       <a class="btn" href="https://line.me/R/ti/p/@491crrfm">
         <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 5.7 2 10.2c0 4 3.6 7.4 8.5 8 .3.1.8.2.9.5.1.3.1.7 0 1l-.1.8c0 .3-.2 1 .9.5s5.7-3.4 7.8-5.8c1.4-1.5 2-3.1 2-4.9C22 5.7 17.5 2 12 2z"/></svg>
