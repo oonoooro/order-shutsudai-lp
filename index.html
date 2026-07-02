@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オーダー出題くん｜欲しい問題を、文章でオーダー。AIが作るあなた専用ドリル</title>
+<meta name="description" content="「こんな問題を出して」と文章でオーダーするだけ。AIがあなた専用の問題を作って、忘却曲線で自動復習。LINEで毎日届く学習Bot。">
+<meta property="og:title" content="オーダー出題くん｜AIが作るあなた専用ドリル">
+<meta property="og:description" content="欲しい問題を文章でオーダーするだけ。忘却曲線で自動復習。LINEで完結。">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --line:#06c755; --line-d:#04a544; --ink:#1a2b22; --sub:#5b6b63;
+    --bg:#f4faf6; --card:#ffffff; --line-tint:#e7f7ee;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Meiryo",sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.75;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;background:var(--line);color:#fff;
+    font-weight:700;font-size:1.05rem;text-decoration:none;padding:16px 30px;border-radius:999px;
+    box-shadow:0 8px 20px rgba(6,199,85,.35);transition:transform .15s,box-shadow .15s;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(6,199,85,.45)}
+  .btn svg{width:22px;height:22px;fill:#fff}
+
+  /* Hero */
+  .hero{background:linear-gradient(160deg,#06c755 0%,#04a544 60%,#03863a 100%);color:#fff;
+    padding:70px 0 90px;text-align:center;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:40px;background:var(--bg);
+    border-radius:50% 50% 0 0/100% 100% 0 0}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);
+    padding:6px 16px;border-radius:999px;font-size:.85rem;font-weight:600;margin-bottom:22px}
+  .hero h1{font-size:2.15rem;font-weight:800;letter-spacing:.01em;margin-bottom:14px;line-height:1.35}
+  .hero h1 .em{color:#fff23a}
+  .hero p.lead{font-size:1.12rem;opacity:.96;margin:0 auto 30px;max-width:520px}
+  .hero .mascot{font-size:3.4rem;margin-bottom:10px}
+  .hero .note{font-size:.82rem;opacity:.85;margin-top:14px}
+
+  section{padding:54px 0}
+  .kicker{color:var(--line-d);font-weight:700;font-size:.9rem;letter-spacing:.08em;text-align:center;margin-bottom:8px}
+  h2{font-size:1.6rem;font-weight:800;text-align:center;margin-bottom:8px;line-height:1.4}
+  .sec-sub{text-align:center;color:var(--sub);margin-bottom:34px}
+
+  /* Order feature */
+  .order-demo{background:var(--card);border-radius:20px;padding:26px 22px;box-shadow:0 10px 30px rgba(10,60,35,.08);
+    border:1px solid #e6efe9}
+  .chat{display:flex;flex-direction:column;gap:12px}
+  .bub{max-width:88%;padding:13px 17px;border-radius:18px;font-size:.98rem;line-height:1.6}
+  .bub.me{align-self:flex-end;background:var(--line);color:#fff;border-bottom-right-radius:5px}
+  .bub.bot{align-self:flex-start;background:#eef3f0;color:var(--ink);border-bottom-left-radius:5px;white-space:pre-line}
+  .bub .who{font-size:.72rem;opacity:.7;margin-bottom:2px}
+
+  /* Feature grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}.hero h1{font-size:1.8rem}}
+  .card{background:var(--card);border-radius:16px;padding:22px 20px;box-shadow:0 6px 18px rgba(10,60,35,.06);
+    border:1px solid #e9f1ec}
+  .card .ic{font-size:1.9rem;display:block;margin-bottom:8px}
+  .card h3{font-size:1.08rem;margin-bottom:5px}
+  .card p{color:var(--sub);font-size:.94rem}
+
+  /* forgetting curve highlight */
+  .fc{background:var(--line-tint);border-radius:20px;padding:34px 24px;text-align:center;border:1px solid #cdeede}
+  .fc .big{font-size:1.35rem;font-weight:800;margin-bottom:10px}
+  .fc .big span{color:var(--line-d)}
+  .fc p{color:#3b5145;max-width:560px;margin:0 auto}
+
+  /* steps */
+  .steps{counter-reset:s;display:flex;flex-direction:column;gap:14px;max-width:560px;margin:0 auto}
+  .step{display:flex;gap:16px;align-items:flex-start;background:var(--card);border-radius:14px;padding:18px 20px;
+    box-shadow:0 5px 14px rgba(10,60,35,.05);border:1px solid #e9f1ec}
+  .step::before{counter-increment:s;content:counter(s);flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+    background:var(--line);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:1.05rem}
+  .step h3{font-size:1.05rem;margin-bottom:2px}
+  .step p{color:var(--sub);font-size:.92rem}
+
+  .cta-final{text-align:center;background:linear-gradient(160deg,#eafaf1,#dff6e9);border-radius:22px;padding:44px 22px;border:1px solid #cdeede}
+  .cta-final h2{margin-bottom:6px}
+  .cta-final p{color:var(--sub);margin-bottom:24px}
+
+  footer{padding:34px 0 46px;text-align:center;color:var(--sub);font-size:.85rem}
+  footer a{color:var(--line-d);text-decoration:none;margin:0 8px}
+  .disclaimer{font-size:.78rem;color:#8a9a91;max-width:560px;margin:16px auto 0}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="mascot">📚</div>
+    <div class="badge">LINEで完結・アプリ不要</div>
+    <h1>欲しい問題を、<span class="em">文章でオーダー。</span><br>AIが作る、あなた専用ドリル。</h1>
+    <p class="lead">「こんな問題を出して」と伝えるだけ。AIがその通りの問題を作って、毎日LINEに届けます。</p>
+    <a class="btn" href="https://line.me/R/ti/p/@491crrfm">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 5.7 2 10.2c0 4 3.6 7.4 8.5 8 .3.1.8.2.9.5.1.3.1.7 0 1l-.1.8c0 .3-.2 1 .9.5s5.7-3.4 7.8-5.8c1.4-1.5 2-3.1 2-4.9C22 5.7 17.5 2 12 2z"/></svg>
+      LINEで友だち追加
+    </a>
+    <p class="note">＋「忘却曲線」で自動復習。だから続く。</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">一番の特徴</p>
+    <h2>問題集を探さない。<br>“欲しい問題”を文章で頼むだけ。</h2>
+    <p class="sec-sub">形式・出し方・答えさせ方まで、あなたの言葉でオーダーできます。</p>
+    <div class="order-demo">
+      <div class="chat">
+        <div class="bub me"><div class="who">あなた</div>韓国語の日常フレーズをカタカナで出して、意味を4択で</div>
+        <div class="bub bot"><div class="who">オーダー出題くん</div>📝 問題
+アンニョンハセヨ
+A. こんにちは
+B. ありがとう
+C. さようなら
+D. すみません</div>
+        <div class="bub me"><div class="who">あなた</div>簿記3級の仕訳を4択で、解説は日本語で詳しく</div>
+        <div class="bub bot"><div class="who">オーダー出題くん</div>📝 問題を作成しました（解説つき）✍️</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:8px">
+  <div class="wrap">
+    <div class="fc">
+      <div class="big">🧠 <span>忘却曲線</span>で、自動復習。</div>
+      <p>正解した問題は「卒業」。間違えた問題だけ、“忘れた頃”に自動で再出題します。ムリに詰め込まず、最小の労力で記憶に定着させる仕組みです。</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:8px">
+  <div class="wrap">
+    <p class="kicker">できること</p>
+    <h2>学びを、ぜんぶLINEの中で。</h2>
+    <p class="sec-sub"></p>
+    <div class="grid">
+      <div class="card"><span class="ic">✍️</span><h3>文章でオーダー</h3><p>テーマも出し方も自由に指定。あなた専用の問題をAIが生成。</p></div>
+      <div class="card"><span class="ic">🔘</span><h3>4択もタップで</h3><p>4択はA〜Dをタップで回答。一問一答は入力で。</p></div>
+      <div class="card"><span class="ic">💡</span><h3>ヒント／わからない</h3><p>詰まったらヒント。わからなければ答えを見て、復習に回します。</p></div>
+      <div class="card"><span class="ic">💬</span><h3>AIと会話</h3><p>「なぜこの答え？」など、問題や勉強法を何でも相談。</p></div>
+      <div class="card"><span class="ic">📚</span><h3>テーマ切替</h3><p>複数テーマを持って、今日学ぶ1つを切り替え。</p></div>
+      <div class="card"><span class="ic">⏰</span><h3>毎日おまかせ</h3><p>好きな時刻に、今日の問題と復習を自動でお届け。</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:8px">
+  <div class="wrap">
+    <p class="kicker">使い方</p>
+    <h2>3ステップで、今日から。</h2>
+    <p class="sec-sub"></p>
+    <div class="steps">
+      <div class="step"><div><h3>友だち追加</h3><p>LINEで「オーダー出題くん」を追加。アプリのインストールは不要です。</p></div></div>
+      <div class="step"><div><h3>「設定」でオーダー</h3><p>どんな問題が欲しいかを文章で伝えるだけ。形式も指定できます。</p></div></div>
+      <div class="step"><div><h3>解くだけ</h3><p>毎日届く問題を解くだけ。間違いは忘却曲線で自動復習されます。</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="cta-final">
+      <h2>あなた専用のドリルを、今すぐ。</h2>
+      <p>無料で始められます。まずはLINEで友だち追加。</p>
+      <a class="btn" href="https://line.me/R/ti/p/@491crrfm">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 5.7 2 10.2c0 4 3.6 7.4 8.5 8 .3.1.8.2.9.5.1.3.1.7 0 1l-.1.8c0 .3-.2 1 .9.5s5.7-3.4 7.8-5.8c1.4-1.5 2-3.1 2-4.9C22 5.7 17.5 2 12 2z"/></svg>
+        LINEで友だち追加
+      </a>
+    </div>
+    <p class="disclaimer">※問題はAIが自動生成するため、内容に誤りを含む場合があります。資格・試験対策では公式教材で最終確認してください。</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="https://desktop-mf8h438.taildad6ca.ts.net:8443/terms">利用規約</a>・
+    <a href="https://desktop-mf8h438.taildad6ca.ts.net:8443/privacy">プライバシーポリシー</a>
+    <p style="margin-top:12px">© オーダー出題くん</p>
+  </div>
+</footer>
+
+</body>
+</html>
