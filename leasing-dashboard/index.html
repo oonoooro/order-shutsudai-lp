@@ -24,6 +24,12 @@
   </div>
 </header>
 
+<div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="ファイルをドラッグ＆ドロップ、またはクリックして選択">
+  <strong>ここに週報をドラッグ＆ドロップ</strong>
+  <span>週報 Excel（.xlsx / .xlsm）・物件マスター（property_master.csv）・対応表（source_mapping.csv）・dashboard_data.json に対応。画面のどこにドロップしても読み込みます。ファイルはこのブラウザ内で処理し、送信しません。</span>
+</div>
+<div class="drop-overlay" aria-hidden="true"><div>ドロップして読み込む</div></div>
+
 <div id="banners" class="banners" aria-live="polite"></div>
 
 <nav class="tabs" role="tablist" aria-label="画面切替">
@@ -48,6 +54,7 @@
   <label>アラート有無<select id="f-alert"></select></label>
   <label>重複<select id="f-duplicate"></select></label>
   <button type="button" id="btn-clear" class="btn btn-ghost">クリア</button>
+  <div id="f-master" class="filters-master" aria-label="物件マスターの項目で絞り込み" hidden></div>
 </section>
 
 <main id="main">

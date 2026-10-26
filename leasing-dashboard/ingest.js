@@ -698,7 +698,60 @@
 
   // ---------- 物件の特定 ----------
 
-  // 1) 対応表（ファイル名に含まれる文字 → Project #） 2) ファイル名に含まれる物件名（最長一致） 3) ファイル内の物件名
+  // 物件名の多くに共通する接頭語（シリーズ名など）をマスターから見つける。ブランド名をコードに持たないため
+  function detectPrefixes(master) {
+    var names = master.entries.map(function (e) { return norm(e.property_name_ja); }).filter(function (n) { return n.length >= 4; });
+    var need = Math.max(3, Math.ceil(names.length * 0.2)), out = {};
+    names.forEach(function (n) {
+      for (var L = n.length - 1; L >= 3; L--) {
+        var p = n.slice(0, L);
+        if (names.filter(function (m) { return m.indexOf(p) === 0; }).length >= need) { out[p] = true; break; }
+      }
+    });
+    // より長い接頭語の一部でしかないもの（途中で切れたもの）は除く
+    var list = Object.keys(out);
+    return list.filter(function (p) { return !list.some(function (q) { return q !== p && q.indexOf(p) === 0; }); });
+  }
+
+  // ファイル名を照合用に正規化する。空白は取り除くが、その位置を区切りとして覚えておく
+  function fileNameForMatch(name) {
+    var s = String(name || '');
+    if (typeof s.normalize === 'function') s = s.normalize('NFKC');
+    s = s.toLowerCase().replace(/\.(xlsx|xlsm|xls|csv)$/, '');
+    var text = '', boundary = [];
+    var pendingSpace = false;
+    for (var i = 0; i < s.length; i++) {
+      if (/[\s　]/.test(s[i])) { pendingSpace = true; continue; }
+      boundary.push(pendingSpace);
+      text += s[i];
+      pendingSpace = false;
+    }
+    boundary.push(true);
+    return { text: text, boundaryBefore: boundary };
+  }
+
+  var BOUNDARY_CHAR = /[()\[\]【】「」『』<>＜＞_\-・,.、。:;!?/\\0-9★☆]/;
+  var NAME_FOLLOWERS = ['週報', '仲介', '営業', '報告', 'リーシング'];
+
+  // 候補名がファイル名の中で区切られた位置に現れるか（「大岡山」が「大岡山II」や「南大岡山」に一致しないように）
+  function boundedMatch(f, cand) {
+    var idx = f.text.indexOf(cand), reasons = [];
+    while (idx !== -1) {
+      var end = idx + cand.length;
+      var prevOk = idx === 0 || f.boundaryBefore[idx] || BOUNDARY_CHAR.test(f.text[idx - 1]);
+      var rest = f.text.slice(end);
+      var nextOk = end === f.text.length || f.boundaryBefore[end] || BOUNDARY_CHAR.test(f.text[end]) ||
+        NAME_FOLLOWERS.some(function (w) { return rest.indexOf(w) === 0; });
+      if (prevOk && nextOk) return { ok: true };
+      reasons.push(!nextOk ? '直後に「' + rest.slice(0, 6) + '」が続く' : '直前に「' + f.text.slice(Math.max(0, idx - 3), idx) + '」がある');
+      idx = f.text.indexOf(cand, idx + 1);
+    }
+    return { ok: false, reasons: reasons };
+  }
+
+  // 1) 対応表（ファイル名に含まれる文字 → Project #）
+  // 2) ファイル名に区切られて現れる物件名（共通の接頭語を除いた名前も可。最長一致、同じ長さで複数なら未紐付け）
+  // 3) ファイル内の物件名（完全一致）
   function resolveProject(res, master, mapping, cfg) {
     var fname = norm(res.file_name);
     var best = null;
@@ -707,25 +760,49 @@
       if (p && fname.indexOf(p) !== -1 && (!best || p.length > best.len)) best = { key: C.normalizeKey(m.project_number), len: p.length, by: '対応表' };
     });
     if (best) return best;
-    var strip = (cfg.ingest && cfg.ingest.stripNamePrefixes) || [];
+    var f = fileNameForMatch(res.file_name);
+    var prefixes = detectPrefixes(master).concat(((cfg.ingest && cfg.ingest.stripNamePrefixes) || []).map(norm));
+    var hits = [], rejected = [];
     master.entries.forEach(function (e) {
-      ['property_name_ja', 'project_name', 'property_name_en'].forEach(function (f) {
-        var names = [e[f]];
-        strip.forEach(function (p) { if (e[f] && norm(e[f]).indexOf(norm(p)) === 0) names.push(norm(e[f]).slice(norm(p).length)); });
-        names.forEach(function (n) {
-          var nn = norm(n);
-          if (nn.length >= 2 && fname.indexOf(nn) !== -1 && (!best || nn.length > best.len)) best = { key: e.key, len: nn.length, by: 'ファイル名の物件名' };
-        });
+      var cands = {};
+      ['property_name_ja', 'project_name'].forEach(function (fld) {
+        var n = norm(e[fld]);
+        if (n.length >= 2) cands[n] = true;
+        prefixes.forEach(function (p) { if (p && n.indexOf(p) === 0 && n.length - p.length >= 2) cands[n.slice(p.length)] = true; });
+      });
+      Object.keys(cands).forEach(function (cand) {
+        if (f.text.indexOf(cand) === -1) return;
+        var m = boundedMatch(f, cand);
+        if (m.ok) hits.push({ key: e.key, len: cand.length, name: cand });
+        else rejected.push(cand + '（' + m.reasons[0] + '）');
       });
     });
-    if (best) return best;
+    if (hits.length) {
+      var maxLen = Math.max.apply(null, hits.map(function (h) { return h.len; }));
+      var top = hits.filter(function (h) { return h.len === maxLen; });
+      var keys = top.map(function (h) { return h.key; }).filter(function (k, i, a) { return a.indexOf(k) === i; });
+      if (keys.length === 1) return { key: keys[0], len: maxLen, by: 'ファイル名の物件名「' + top[0].name + '」' };
+      res.warnings.push('ファイル名が複数の物件（' + keys.join(', ') + '）に同じ程度一致するため紐付けませんでした');
+      return null;
+    }
     var label = norm(res.property_label);
     if (label) master.entries.forEach(function (e) {
-      ['property_name_ja', 'project_name', 'property_name_en'].forEach(function (f) {
-        if (!best && e[f] && norm(e[f]) === label) best = { key: e.key, len: label.length, by: 'ファイル内の物件名' };
+      ['property_name_ja', 'project_name', 'property_name_en'].forEach(function (fld) {
+        if (!best && e[fld] && norm(e[fld]) === label) best = { key: e.key, len: label.length, by: 'ファイル内の物件名' };
       });
     });
+    if (!best && rejected.length) res.warnings.push('物件名の候補 ' + rejected.slice(0, 3).join('、') + ' は別の物件の可能性があるため紐付けませんでした（対応表で指定できます）');
     return best;
+  }
+
+  // ファイル名だけで紐付け結果を確認する（対応表を作るときの確認用）
+  function previewMapping(fileNames, masterText, mappingText, cfg) {
+    var master = C.loadMaster(masterText, cfg), mapping = parseMappingCSV(mappingText);
+    return fileNames.map(function (n) {
+      var res = { file_name: n, property_label: null, warnings: [] };
+      var p = resolveProject(res, master, mapping, cfg);
+      return { file_name: n, project_number: p ? p.key : null, by: p ? p.by : null, note: res.warnings.join(' / ') || null };
+    });
   }
 
   function parseMappingCSV(textIn) {
@@ -773,9 +850,13 @@
         if (a < b) chosen[k] = { file: f, week: w };
       });
     });
-    var allWeeks = Object.keys(chosen).map(function (k) { return chosen[k].week.week_end; });
+    // 対象週は、物件に紐付いたかどうかに関係なく読み取れた週報の日付から決める
+    var allWeeks = [];
+    files.forEach(function (f) { if (f.status !== 'failed' && f.include_in_numeric) f.weeks.forEach(function (w) { allWeeks.push(w.week_end); }); });
     var periodDay = options.periodDay !== undefined ? options.periodDay : (allWeeks.length ? Math.max.apply(null, allWeeks) : null);
     var minDay = periodDay === null ? null : periodDay - 7 * (historyWeeks - 1);
+    var unitWeeks = (cfg.ingest && cfg.ingest.unitHistoryWeeks) || 2;
+    var unitMinDay = periodDay === null ? Infinity : periodDay - 7 * (unitWeeks - 1);
 
     var properties = [];
     Object.keys(chosen).forEach(function (k) {
@@ -853,7 +934,8 @@
       (Array.isArray(prev.units) ? prev.units : []).forEach(function (u) {
         var per = C.normalizePeriod(u.report_date);
         var d = per && /^\d{8}$/.test(per) ? C.parseDateValue(per.slice(0, 4) + '-' + per.slice(4, 6) + '-' + per.slice(6)).value : null;
-        if (!haveU[C.normalizeKey(u.project_number) + '|' + per] && d !== null && minDay !== null && d >= minDay && d < periodDay) units.push(u);
+        // 住戸明細は前週比較に使う直近の週だけ残す（ブラウザ内の保存容量を抑えるため）
+        if (!haveU[C.normalizeKey(u.project_number) + '|' + per] && d !== null && d >= unitMinDay && d < periodDay) units.push(u);
       });
     }
 
@@ -919,6 +1001,7 @@
 
   return {
     FORMAT_ROLES: FORMAT_ROLES, detectFormat: detectFormat, parseWorkbookFile: parseWorkbookFile,
-    buildDashboardData: buildDashboardData, parseMappingCSV: parseMappingCSV, weekEndOnOrBefore: weekEndOnOrBefore, toDay: toDay
+    buildDashboardData: buildDashboardData, parseMappingCSV: parseMappingCSV, weekEndOnOrBefore: weekEndOnOrBefore, toDay: toDay,
+    previewMapping: previewMapping, detectPrefixes: detectPrefixes
   };
 });

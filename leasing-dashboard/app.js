@@ -8,13 +8,12 @@
 
   var C = window.LeasingCore;
   var CFG = window.DASHBOARD_CONFIG;
-  var CACHE_KEY = 'leasing-dashboard:last-good';
   var THEME_KEY = 'leasing-dashboard:theme';
 
   var state = {
     model: null, texts: null, loadedAt: null, source: null, stale: null, notes: [],
     tab: 'summary', period: null, filters: {}, selectedKey: null,
-    sort: { key: 'key', dir: 1 }, alertCat: null, fileStatus: '', issueSeverity: ''
+    sort: { key: 'key', dir: 1 }, alertCat: null, fileStatus: '', issueSeverity: '', masterFilter: {}, mappingText: null, lastParsed: null
   };
 
   // ---------- DOM ヘルパー（文字列は必ず textContent で入れる） ----------
@@ -80,6 +79,85 @@
     }, function (err) { return { ok: false, network: true, error: String(err) }; });
   }
 
+  // ブラウザ内の保存領域。取込結果は大きくなるため IndexedDB を使い、使えない環境では localStorage に保存する
+  var Store = (function () {
+    var dbp = null;
+    function open() {
+      if (dbp) return dbp;
+      dbp = new Promise(function (resolve) {
+        try {
+          var req = window.indexedDB.open('leasing-dashboard', 1);
+          req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { resolve(null); };
+          req.onblocked = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+      return dbp;
+    }
+    function tx(mode, fn) {
+      return open().then(function (db) {
+        if (!db) return null;
+        return new Promise(function (resolve) {
+          try {
+            var t = db.transaction('kv', mode), st = t.objectStore('kv'), req = fn(st);
+            t.oncomplete = function () { resolve(req && req.result !== undefined ? req.result : true); };
+            t.onerror = t.onabort = function () { resolve(null); };
+          } catch (e) { resolve(null); }
+        });
+      });
+    }
+    return {
+      get: function (k) {
+        return tx('readonly', function (st) { return st.get(k); }).then(function (v) {
+          if (v !== null && v !== true && v !== undefined) return v;
+          var raw = storageGet('leasing-dashboard:' + k);
+          try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+        });
+      },
+      set: function (k, v) {
+        return tx('readwrite', function (st) { return st.put(v, k); }).then(function (ok) {
+          if (ok) return true;
+          return storageSet('leasing-dashboard:' + k, JSON.stringify(v));
+        });
+      },
+      del: function (k) {
+        try { window.localStorage.removeItem('leasing-dashboard:' + k); } catch (e) { /* 無視 */ }
+        return tx('readwrite', function (st) { return st.delete(k); });
+      }
+    };
+  })();
+
+  function periodOf(textIn) {
+    var p = C.safeParseJSON(textIn || '');
+    return p.ok && p.value && p.value.report_metadata ? C.normalizePeriod(p.value.report_metadata.source_period) : null;
+  }
+
+  // 起動時: data/ のデータと、ブラウザに保存した取込結果のうち新しい方を表示する
+  function startup() {
+    var f = CFG.dataFiles;
+    Promise.all([fetchText(f.dashboardData), fetchText(f.propertyMaster), fetchText(f.validationReport), Store.get('last-good'), Store.get('last-parsed')]).then(function (r) {
+      var stored = r[3] && r[3].texts && C.safeParseJSON(r[3].texts.dashboardDataText).ok ? r[3] : null;
+      state.lastParsed = r[4] || null;
+      if (stored && stored.texts.mappingText) state.mappingText = stored.texts.mappingText;
+      var serverOk = r[0].ok && C.safeParseJSON(r[0].text).ok;
+      var useStored = stored && stored.source !== 'server' && (!serverOk || (periodOf(stored.texts.dashboardDataText) || '') >= (periodOf(r[0].text) || ''));
+      if (useStored) {
+        var note = 'ブラウザに保存した取込結果（' + String(stored.loadedAt || '').replace('T', ' ').slice(0, 16) + ' 取込）を表示しています。' +
+          (serverOk ? 'data/ フォルダの内容を表示するには「データ再読込」を押してください。' : '');
+        applyTexts(stored.texts, 'stored', [note]);
+        return;
+      }
+      if (!r[0].ok) {
+        var why = r[0].network ? 'ローカルサーバー経由で開かれていないため読み込めません（file:// で開いた場合は、週報やデータファイルをこの画面にドラッグ＆ドロップしてください）'
+          : 'dashboard_data.json が見つかりません（HTTP ' + r[0].status + '）';
+        return failLoad(why, true);
+      }
+      applyTexts({ dashboardDataText: r[0].text, propertyMasterText: r[1].ok ? r[1].text : null, validationReportText: r[2].ok ? r[2].text : null }, 'server',
+        [].concat(r[1].ok ? [] : ['property_master.csv を読み込めませんでした（物件名は表示できません）。'], r[2].ok ? [] : ['validation_report.csv を読み込めませんでした。']));
+    });
+  }
+
   function loadFromServer() {
     var f = CFG.dataFiles;
     return Promise.all([fetchText(f.dashboardData), fetchText(f.propertyMaster), fetchText(f.validationReport)]).then(function (r) {
@@ -106,13 +184,17 @@
       return;
     }
     if (allowCache) {
-      var cached = readCache();
-      if (cached) {
-        applyTexts(cached.texts, 'cache', []);
-        state.stale = { reason: reason, at: new Date(), cachedAt: cached.loadedAt };
-        render();
-        return;
-      }
+      Store.get('last-good').then(function (cached) {
+        if (cached && cached.texts && C.safeParseJSON(cached.texts.dashboardDataText).ok) {
+          applyTexts(cached.texts, 'cache', []);
+          state.stale = { reason: reason, at: new Date(), cachedAt: cached.loadedAt };
+          render();
+        } else {
+          state.stale = null;
+          renderLoadError(reason);
+        }
+      });
+      return;
     }
     state.stale = null;
     renderLoadError(reason);
@@ -134,24 +216,16 @@
     state.stale = null;
     state.notes = (notes || []).slice();
     if (sameAsBefore && source !== 'cache') state.notes.push('dashboard_data.json は前回読込時と同一内容です。');
-    if (source !== 'cache') writeCache(texts);
+    if (source !== 'cache' && source !== 'stored') writeCache(texts, source);
     if (!state.period || model.periods.indexOf(state.period) === -1 || source !== 'cache') state.period = model.period || model.periods[0] || null;
     populateFilters();
     render();
     return true;
   }
 
-  function writeCache(texts) {
-    storageSet(CACHE_KEY, JSON.stringify({ texts: texts, loadedAt: new Date().toISOString() }));
-  }
-  function readCache() {
-    var raw = storageGet(CACHE_KEY);
-    if (!raw) return null;
-    try {
-      var o = JSON.parse(raw);
-      if (o && o.texts && typeof o.texts.dashboardDataText === 'string' && C.safeParseJSON(o.texts.dashboardDataText).ok) return o;
-    } catch (e) { /* 壊れたキャッシュは使わない */ }
-    return null;
+  function writeCache(texts, source) {
+    var t = Object.assign({}, texts, { mappingText: state.mappingText || null });
+    Store.set('last-good', { texts: t, source: source, loadedAt: new Date().toISOString() });
   }
 
   // ローカルファイル選択（ブラウザ内で読むだけで送信しない）
@@ -171,7 +245,13 @@
         if (role) roles[role].push(f); else unknown.push(f.name);
       });
       unknown.forEach(function (n) { notes.push('「' + n + '」は種類を判別できなかったため読み込みませんでした。'); });
+      if (roles.mappingText.length) state.mappingText = roles.mappingText[0].text;
       if (excel.length) { loadFromExcel(excel, roles, notes); return; }
+      // 物件マスター・対応表だけをドロップした場合は、今のデータに反映する
+      if (!roles.dashboardDataText.length && state.model && (roles.propertyMasterText.length || roles.mappingText.length)) {
+        applyMaster(roles, notes);
+        return;
+      }
       var multi = Object.keys(roles).filter(function (k) { return roles[k].length > 1; });
       if (multi.length) {
         showTransientError('同じ種類のファイルが複数選択されています: ' + multi.map(function (k) { return roles[k].map(function (f) { return f.name; }).join(' / '); }).join('、') + '。1種類につき1ファイルを選択してください。');
@@ -184,7 +264,7 @@
         showTransientError('dashboard_data.json が選択されていません。');
         return;
       }
-      var cur = state.source === 'files' && state.texts ? state.texts : {};
+      var cur = state.texts || {};
       applyTexts({
         dashboardDataText: roles.dashboardDataText[0].text,
         propertyMasterText: roles.propertyMasterText.length ? roles.propertyMasterText[0].text : (cur.propertyMasterText || null),
@@ -204,6 +284,24 @@
     return null;
   }
 
+  // 物件マスター・対応表の差し替え。直前に解析した週報があれば、新しいマスターで紐付けし直す
+  function applyMaster(roles, notes) {
+    var I = window.LeasingIngest;
+    var masterText = roles.propertyMasterText.length ? roles.propertyMasterText[0].text : (state.texts.propertyMasterText || null);
+    var m = C.loadMaster(masterText, CFG);
+    if (roles.propertyMasterText.length) notes.push('物件マスターを反映しました（' + m.entries.length + '物件' + (m.extraColumns.length ? '、絞り込み項目: ' + m.extraColumns.join('・') : '') + '）。');
+    if (roles.mappingText.length) notes.push('対応表を反映しました。');
+    var parsed = state.lastParsed;
+    if (I && parsed && parsed.results && parsed.results.length) {
+      var prev = C.safeParseJSON(state.texts.dashboardDataText);
+      var built = I.buildDashboardData(parsed.results, { config: CFG, masterText: masterText, mappingText: state.mappingText || null, previousData: prev.ok ? prev.value : null });
+      notes.push('直前に取り込んだ週報 ' + parsed.results.length + 'ファイルを、新しいマスター・対応表で紐付けし直しました。');
+      applyTexts({ dashboardDataText: JSON.stringify(built.data, null, 2) + '\n', propertyMasterText: masterText, validationReportText: built.validationCSV }, 'excel', notes);
+      return;
+    }
+    applyTexts({ dashboardDataText: state.texts.dashboardDataText, propertyMasterText: masterText, validationReportText: state.texts.validationReportText }, state.source === 'server' ? 'files' : state.source, notes);
+  }
+
   // 週報 Excel をブラウザ内で解析する（ファイルは送信しない）
   function loadFromExcel(excelFiles, roles, notes) {
     var I = window.LeasingIngest;
@@ -213,6 +311,7 @@
       : state.texts && state.texts.propertyMasterText ? Promise.resolve(state.texts.propertyMasterText)
       : fetchText(CFG.dataFiles.propertyMaster).then(function (r) { return r.ok ? r.text : null; });
     var mapP = fromSel('mappingText') !== null ? Promise.resolve(fromSel('mappingText'))
+      : state.mappingText ? Promise.resolve(state.mappingText)
       : fetchText(CFG.sourceMappingFile).then(function (r) { return r.ok ? r.text : null; });
     var parsed = Promise.all(excelFiles.map(function (f) {
       return f.arrayBuffer().then(function (b) { return I.parseWorkbookFile({ name: f.name, bytes: new Uint8Array(b) }, { config: CFG }); });
@@ -224,9 +323,14 @@
         if (p.ok) prev = p.value;
       }
       var built = I.buildDashboardData(r[2], { config: CFG, masterText: r[0], mappingText: r[1], previousData: prev });
-      if (r[0] === null) notes.push('物件マスターがないため、週報を物件に紐付けできません。property_master.csv も一緒に選択してください。');
-      notes.push('週報 Excel ' + excelFiles.length + 'ファイルをこのブラウザ内で解析しました（外部には送信していません）。結果は「データ検証」タブから保存できます。');
+      if (r[0] === null) notes.push('物件マスターがないため、週報を物件に紐付けできません。property_master.csv もドロップしてください。');
+      var unlinked = built.files.filter(function (x) { return x.status !== 'failed' && !x.project_key && x.format !== 'D'; }).length;
+      notes.push('週報 Excel ' + excelFiles.length + 'ファイルをこのブラウザ内で解析しました（外部には送信していません）。' +
+        (prev ? '前回までのデータに今回の週を追加しました。' : '') + (unlinked ? '物件に紐付かないファイルが ' + unlinked + '件あります（「データ検証」で確認、対応表で指定できます）。' : ''));
       state.lastBuilt = built;
+      state.mappingText = r[1] || state.mappingText || null;
+      state.lastParsed = { results: r[2], savedAt: new Date().toISOString() };
+      Store.set('last-parsed', state.lastParsed);
       applyTexts({ dashboardDataText: JSON.stringify(built.data, null, 2) + '\n', propertyMasterText: r[0], validationReportText: built.validationCSV }, 'excel', notes);
     }).catch(function (e) { showTransientError('週報 Excel の解析に失敗しました: ' + (e && e.message ? e.message : e)); });
   }
@@ -277,6 +381,20 @@
     setOptions($('f-confidence'), [['', 'すべて'], ['high', '高（high）'], ['medium', '中（medium）'], ['low', '低（low）'], ['none', 'データなし']], true);
     setOptions($('f-alert'), [['', 'すべて'], ['yes', 'アラートあり'], ['no', 'アラートなし']], true);
     setOptions($('f-duplicate'), [['', 'すべて'], ['yes', '重複候補のみ'], ['no', '重複なし']], true);
+    // 物件マスターの追加列（TMK・担当者など）は列ごとに絞り込みを作る
+    var box = $('f-master'), prevVals = state.masterFilter || {};
+    clear(box);
+    (m.master.extraColumns || []).forEach(function (col, i) {
+      var vals = uniqueSorted(m.master.entries.map(function (e) { return e.extra[col]; }));
+      if (!vals.length || vals.length > 200) return;
+      var sel = h('select', { id: 'fm-' + i, 'data-col': col, onchange: function () { state.masterFilter[col] = sel.value; render(); } },
+        [['', 'すべて']].concat(vals.map(function (v) { return [v, v]; }), [['__none__', 'データなし']]).map(function (o) { return h('option', { value: o[0], text: o[1] }); }));
+      if (prevVals[col] && (vals.indexOf(prevVals[col]) !== -1 || prevVals[col] === '__none__')) sel.value = prevVals[col];
+      box.appendChild(h('label', null, [col, sel]));
+    });
+    state.masterFilter = {};
+    Array.prototype.forEach.call(box.querySelectorAll('select'), function (sel) { if (sel.value) state.masterFilter[sel.getAttribute('data-col')] = sel.value; });
+    box.hidden = !box.firstChild;
   }
 
   function readFilters() {
@@ -286,11 +404,17 @@
       propertyNameJa: $('f-name-ja').value.trim(),
       spc: $('f-spc').value, am: $('f-am').value, pm: $('f-pm').value,
       band: $('f-band').value, confidence: $('f-confidence').value,
-      alert: $('f-alert').value, duplicate: $('f-duplicate').value
+      alert: $('f-alert').value, duplicate: $('f-duplicate').value,
+      master: Object.assign({}, state.masterFilter || {})
     };
   }
 
-  function filtersActive(f) { return Object.keys(f).some(function (k) { return !!f[k]; }); }
+  function filtersActive(f) {
+    return Object.keys(f).some(function (k) {
+      if (k === 'master') return Object.keys(f.master || {}).some(function (c) { return !!f.master[c]; });
+      return !!f[k];
+    });
+  }
 
   // ---------- 描画 ----------
 
@@ -337,7 +461,7 @@
     el.appendChild(item('失敗', C.fmtCount(meta.file_count_failed, CFG, meta.file_count_failed_invalid)));
     if (c.summary.provisional) el.appendChild(provisionalBadge(c.summary.provisionalReasons));
     if (meta.is_sample) el.appendChild(badge('架空サンプル', 'sample'));
-    var src = state.source === 'files' ? 'ローカルファイル' : state.source === 'excel' ? '週報Excel（ブラウザ内で解析）' : state.source === 'cache' ? '前回データ（ブラウザ保存）' : 'data/ フォルダ';
+    var src = { files: 'ローカルファイル', excel: '週報Excel（ブラウザ内で解析）', cache: '前回データ（ブラウザ保存）', stored: 'ブラウザに保存した取込結果' }[state.source] || 'data/ フォルダ';
     el.appendChild(h('span', { class: 'muted', text: '読込元: ' + src + ' / 読込 ' + fmtTime(state.loadedAt) }));
   }
 
@@ -422,8 +546,10 @@
         '基準週 ' + C.formatPeriod(c.period) + ' の物件データがありません。集計値は 0 ではなく「データなし」と表示します。']));
     }
     var grid = h('div', { class: 'kpis' });
+    var missing = C.missingProperties(c.m, c.period).length;
     grid.appendChild(kpi('対象物件数', C.fmtCount(s.propertyCount.value, CFG), false, wow('propertyCount', '件', true), {
-      note: s.excluded ? '集計除外 ' + s.excluded + '件（重複・未紐付け）' : (c.all.length === 0 ? '物件レコードなし' : null)
+      note: [s.excluded ? '集計除外 ' + s.excluded + '件（重複・未紐付け）' : (c.all.length === 0 ? '物件レコードなし' : null),
+        c.m.master.entries.length ? 'マスター ' + c.m.master.entries.length + '物件中 ' + missing + '物件はデータなし' : null].filter(Boolean).join(' / ') || null
     }));
     [['total_units', '総戸数', true], ['occupied_units', '稼働戸数', true], ['vacant_units', '空室戸数', false], ['application_units', '申込戸数', true],
       ['scheduled_contract_units', '契約予定戸数', true], ['scheduled_termination_units', '解約予定戸数', false]].forEach(function (x) {
@@ -434,7 +560,8 @@
     grid.appendChild(kpi('ポートフォリオ稼働率', C.fmtRate(s.occupancy.value, CFG), s.occupancy.value === null, wow('occupancy', '', true),
       Object.assign({ note: s.occupancy.value === null ? '算出対象なし' : '稼働 ÷ 総戸数（' + s.occupancy.count + '物件）' + (s.occupancy.missing ? ' / ' + s.occupancy.missing + '物件データなし' : '') }, s.occupancy.value !== null ? prov : {})));
     grid.appendChild(kpi('申込反映後稼働率', C.fmtRate(s.afterApplication.value, CFG), s.afterApplication.value === null, wow('afterApplication', '', true),
-      Object.assign({ note: s.afterApplication.value === null ? '算出対象なし（3値が揃い元データが算出を許容した物件のみ）' : '(稼働＋申込) ÷ 総戸数（' + s.afterApplication.count + '物件）' }, s.afterApplication.value !== null ? prov : {})));
+      Object.assign({ note: s.afterApplication.value === null ? '算出対象なし（3値が揃い元データが算出を許容した物件のみ）'
+        : '(稼働＋申込) ÷ 総戸数（' + s.afterApplication.count + '物件）' + (s.afterApplication.count !== s.occupancy.count ? '。算出できる物件だけのため、稼働率とは対象物件が異なります' : '') }, s.afterApplication.value !== null ? prov : {})));
     el.appendChild(grid);
 
     // 前週比
@@ -1179,6 +1306,19 @@
     ]);
     el.appendChild(grid);
 
+    // 物件マスターにあるが基準週のデータがない物件
+    var miss = C.missingProperties(m, c.period);
+    if (m.master.entries.length) {
+      el.appendChild(card('データのない物件（基準週 ' + C.formatPeriod(c.period) + ' / ' + miss.length + ' / ' + m.master.entries.length + '物件）', miss.length
+        ? h('div', null, [
+          h('p', { class: 'note', text: '週報が未提出、読取失敗、またはファイルが物件に紐付かなかった物件です。紐付かない場合は対応表（source_mapping.csv）をドロップしてください。' }),
+          unitTable(['Project #', '日本語物件名', 'Project Name'].concat(m.master.extraColumns || []), miss.map(function (e) {
+            return h('tr', null, [h('td', { text: e.key }), h('td', { text: e.property_name_ja || CFG.display.nullLabel }), h('td', { text: e.project_name || CFG.display.nullLabel })]
+              .concat((m.master.extraColumns || []).map(function (col) { return h('td', { text: e.extra[col] || CFG.display.nullLabel }); })));
+          }))])
+        : empty('マスターの全物件にデータがあります')));
+    }
+
     // 週報 Excel を解析した場合は、結果を保存して data/ に置けるようにする
     if (state.source === 'excel' && state.texts) {
       el.appendChild(card('解析結果の保存', h('div', null, [
@@ -1189,6 +1329,16 @@
         ])
       ])));
     }
+    el.appendChild(card('ブラウザに保存したデータ', h('div', null, [
+      h('p', { class: 'note', text: 'ドロップした週報の取込結果・物件マスター・対応表は、このブラウザ内（IndexedDB）に保存され、次回もこの画面に表示されます。外部には送信しません。' }),
+      h('button', { type: 'button', class: 'btn btn-ghost btn-small', text: 'ブラウザに保存したデータを削除', onclick: function () {
+        Promise.all([Store.del('last-good'), Store.del('last-parsed')]).then(function () {
+          state.lastParsed = null; state.mappingText = null;
+          state.notes = ['ブラウザに保存したデータを削除しました。「データ再読込」で data/ フォルダの内容を表示します。'];
+          render();
+        });
+      } })
+    ])));
 
     // 公開判定
     var jsonOk = true;
@@ -1290,13 +1440,26 @@
     $('btn-clear').addEventListener('click', function () {
       ['f-project', 'f-spc', 'f-am', 'f-pm', 'f-band', 'f-confidence', 'f-alert', 'f-duplicate'].forEach(function (id) { $(id).value = ''; });
       $('f-project-name').value = ''; $('f-name-ja').value = '';
+      state.masterFilter = {};
+      Array.prototype.forEach.call(document.querySelectorAll('#f-master select'), function (sel) { sel.value = ''; });
       if (state.model) { state.period = state.model.period || state.model.periods[0]; populateFilters(); }
       render();
     });
     $('btn-reload').addEventListener('click', function () { state.notes = []; loadFromServer(); });
     $('file-input').addEventListener('change', function (e) { loadFromFiles(e.target.files); e.target.value = ''; });
+    // 画面のどこにドロップしても読み込む。ドラッグ中は受付表示を出す
+    var dragDepth = 0;
+    document.addEventListener('dragenter', function (e) { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+    document.addEventListener('dragleave', function () { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('dragging'); });
     document.addEventListener('dragover', function (e) { e.preventDefault(); });
-    document.addEventListener('drop', function (e) { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files.length) loadFromFiles(e.dataTransfer.files); });
+    document.addEventListener('drop', function (e) {
+      e.preventDefault();
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+      if (e.dataTransfer && e.dataTransfer.files.length) loadFromFiles(e.dataTransfer.files);
+    });
+    $('dropzone').addEventListener('click', function () { $('file-input').click(); });
+    $('dropzone').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file-input').click(); } });
     $('btn-theme').addEventListener('click', function () {
       var root = document.documentElement;
       var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1329,7 +1492,7 @@
     var theme = storageGet(THEME_KEY);
     if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
     bind();
-    loadFromServer();
+    startup();
   }
 
   if (!C || !CFG) {

@@ -289,3 +289,20 @@ dl.kv dd { margin: 0; }
 .st-contract { background: var(--good-bg); color: var(--delta-up); border-color: var(--good); }
 .st-occupied { background: var(--surface); color: var(--text-2); border-color: var(--border); }
 .st-notice { background: var(--warning-bg); color: var(--text); border-color: var(--warning); }
+
+/* ドラッグ＆ドロップ */
+.dropzone {
+  margin: 10px 20px 0; padding: 10px 14px; border: 2px dashed var(--axis); border-radius: 8px;
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; cursor: pointer; background: var(--surface); color: var(--text-2); font-size: 12px;
+}
+.dropzone strong { color: var(--text); font-size: 14px; }
+.dropzone:hover, .dropzone:focus-visible { border-color: var(--accent); outline: none; }
+.drop-overlay {
+  display: none; position: fixed; inset: 0; z-index: 20; background: rgba(42, 120, 214, 0.15);
+  border: 4px dashed var(--accent); align-items: center; justify-content: center; pointer-events: none;
+}
+.drop-overlay div { background: var(--surface); color: var(--text); padding: 16px 24px; border-radius: 8px; font-size: 18px; font-weight: 600; box-shadow: var(--shadow); }
+body.dragging .drop-overlay { display: flex; }
+.filters-master { display: flex; flex-wrap: wrap; gap: 8px 12px; width: 100%; padding-top: 6px; border-top: 1px dashed var(--grid); }
+.filters-master[hidden] { display: none; }
+@media (max-width: 640px) { .dropzone { margin-left: 16px; margin-right: 16px; } }

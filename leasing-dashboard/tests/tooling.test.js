@@ -141,3 +141,21 @@ test('sample_data_schema.json は解析結果の拡張（unit_events・action_it
   assert.ok(schema.properties.action_items.items.properties.due_date);
   assert.ok(schema['x-csv-schemas']['source_mapping.csv']);
 });
+
+test('AGENTS.md（Copilot 向けガイド）に書いた関数名・設定名がコードに実在する', () => {
+  const guide = read('AGENTS.md') + read('COPILOT_GUIDE.md');
+  const code = { 'app.js': read('app.js'), 'core.js': read('core.js'), 'ingest.js': read('ingest.js'), 'config.js': read('config.js') };
+  const names = {
+    'app.js': ['LIST_COLUMNS', 'renderSummary', 'renderUnits', 'renderList', 'renderAlerts', 'renderDetail', 'renderValidation', 'function h('],
+    'core.js': ['ALERT_CATEGORIES', 'function computeAlerts'],
+    'ingest.js': ['function detectFormat', 'function parseA', 'function parseB', 'function parseC', 'function parseD', 'function findHeader'],
+    'config.js': ['occupancyBands', 'allowedMasterColumns', 'moneyUnit', 'longVacancyDays']
+  };
+  Object.keys(names).forEach((f) => names[f].forEach((n) => {
+    assert.ok(code[f].includes(n), f + ' に ' + n + ' がない');
+    const bare = n.replace(/^function /, '').replace(/\($/, '');
+    assert.ok(guide.includes(bare), 'ガイドに ' + bare + ' の記載がない');
+  }));
+  assert.ok(fs.existsSync(path.join(ROOT, '.github', 'copilot-instructions.md')));
+  assert.ok(fs.existsSync(path.join(ROOT, 'tests', 'fixtures', 'make_weekly_xlsx.py')));
+});

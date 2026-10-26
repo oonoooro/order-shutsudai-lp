@@ -131,6 +131,36 @@ async function main() {
   check(xerrors.length === 0, '週報 Excel の解析でスクリプトエラーなし' + (xerrors.length ? ': ' + xerrors.join(' | ') : ''));
   check(xexternal.length === 0, '週報 Excel の解析で外部通信なし' + (xexternal.length ? ': ' + xexternal.join(', ') : ''));
 
+  // ドラッグ＆ドロップの流れ: 週報だけ → マスターだけ（再紐付け）→ 開き直しても残る → マスターの列で絞り込み
+  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  const dpage = await ctx.newPage();
+  const derrors = [];
+  dpage.on('pageerror', (e) => derrors.push(String(e)));
+  await dpage.goto(base);
+  await dpage.waitForSelector('#header-meta strong');
+  check(await dpage.isVisible('#dropzone'), 'ドラッグ＆ドロップの受付エリアを表示する');
+  const xlsx = fs.readdirSync(xdir).filter((f) => /\.xlsx$/.test(f)).map((f) => payload(path.join(xdir, f)));
+  await dpage.setInputFiles('#file-input', xlsx);
+  await dpage.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  const masterCsv = fs.readFileSync(path.join(__dirname, 'fixtures', 'weekly_master.csv'), 'utf8').trim().split('\n')
+    .map((l, i) => l + ',' + (i === 0 ? 'TMK' : i === 3 ? '架空TMK2' : '架空TMK1')).join('\n') + '\n';
+  await dpage.setInputFiles('#file-input', [{ name: 'property_master.csv', mimeType: 'text/csv', buffer: Buffer.from(masterCsv) }]);
+  await dpage.waitForFunction(() => /紐付けし直しました/.test(document.getElementById('banners').textContent), null, { timeout: 15000 });
+  await dpage.click('.tab[data-tab="list"]');
+  check((await dpage.locator('#view-list tbody tr').count()) === 3, 'マスターだけをドロップすると、直前の週報を新しいマスターで紐付けし直す');
+  check(await dpage.isVisible('#f-master select'), 'マスターの追加列（TMK）の絞り込みを表示する');
+  await dpage.selectOption('#f-master select', '架空TMK2');
+  check((await dpage.locator('#view-list tbody tr').count()) === 1, 'マスターの追加列（TMK）で物件を絞り込める');
+  // data/ に dashboard_data.json がない状態で開き直すと、ブラウザに保存した取込結果を表示する
+  fs.renameSync(path.join(tmp, 'dashboard_data.json'), path.join(tmp, 'dashboard_data.json.bak'));
+  await dpage.reload();
+  await dpage.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  check(/ブラウザに保存した取込結果/.test(await dpage.textContent('#banners')), '開き直しても、ブラウザに保存した取込結果を表示する');
+  fs.renameSync(path.join(tmp, 'dashboard_data.json.bak'), path.join(tmp, 'dashboard_data.json'));
+  check(derrors.length === 0, 'ドラッグ＆ドロップの流れでスクリプトエラーなし' + (derrors.length ? ': ' + derrors.join(' | ') : ''));
+  if (SHOTS) await dpage.screenshot({ path: path.join(SHOTS, 'dragdrop.png'), fullPage: false });
+  await ctx.close();
+
   await browser.close();
   await new Promise((r) => server.close(r));
   fs.rmSync(tmp, { recursive: true, force: true });

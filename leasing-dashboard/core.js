@@ -310,12 +310,21 @@
       res.issues.push(issue('missing_column', 'error', 'property_master.csv に Project # 列（project_number）がありません。'));
       return res;
     }
+    // 既知の列以外（TMK・担当者など）は絞り込み項目として保持する。個人情報らしい列は、許可された列だけ読む
+    var allowed = ((config.privacy && config.privacy.allowedMasterColumns) || []).map(headerKey);
+    res.extraColumns = [];
+    var extraIdx = {};
     cols.unknown.forEach(function (h) {
-      if (isDeniedField(h, config)) res.issues.push(issue('privacy_stripped', 'warning', 'property_master.csv の列「' + h + '」は個人情報の可能性があるため読み込みません。', { field: h }));
-      else res.unknownColumns.push(h);
+      if (isDeniedField(h, config) && allowed.indexOf(headerKey(h)) === -1) {
+        res.issues.push(issue('privacy_stripped', 'warning', 'property_master.csv の列「' + h + '」は個人情報の可能性があるため読み込みません（表示する場合は config.js の privacy.allowedMasterColumns に追加）。', { field: h }));
+        return;
+      }
+      res.extraColumns.push(h);
+      extraIdx[h] = csv.headers.indexOf(h);
     });
-    if (res.unknownColumns.length) {
-      res.issues.push(issue('unknown_column', 'info', 'property_master.csv の未知の列を無視しました: ' + res.unknownColumns.join(', '), { columns: res.unknownColumns.slice() }));
+    res.unknownColumns = res.extraColumns.slice();
+    if (res.extraColumns.length) {
+      res.issues.push(issue('unknown_column', 'info', 'property_master.csv の追加列を絞り込み項目として読み込みました: ' + res.extraColumns.join(', '), { columns: res.extraColumns.slice() }));
     }
     var seen = {};
     csv.rows.forEach(function (r, idx) {
@@ -330,8 +339,12 @@
         res.issues.push(issue('missing_project_number', 'warning', 'property_master.csv ' + (idx + 2) + '行目: Project # が空のため無視しました。', { row: idx + 2 }));
         return;
       }
-      var entry = { key: key, project_number: get('project_number'), row: idx + 2 };
+      var entry = { key: key, project_number: get('project_number'), row: idx + 2, extra: {} };
       Object.keys(config.masterColumns).forEach(function (c) { if (c !== 'project_number') entry[c] = get(c); });
+      res.extraColumns.forEach(function (h) {
+        var v = r[extraIdx[h]] === undefined ? '' : r[extraIdx[h]].trim();
+        entry.extra[h] = v === '' ? null : sanitizeText(v, config).value;
+      });
       if (seen[key]) {
         if (res.duplicateKeys.indexOf(key) === -1) res.duplicateKeys.push(key);
         res.issues.push(issue('duplicate_project_master', 'error',
@@ -1481,8 +1494,23 @@
       }
       if (f.duplicate === 'yes' && !r.duplicate) return false;
       if (f.duplicate === 'no' && r.duplicate) return false;
+      // 物件マスターの追加列（TMK・担当者など）での絞り込み。'__none__' は「データなし」
+      if (f.master) {
+        for (var col in f.master) {
+          if (!Object.prototype.hasOwnProperty.call(f.master, col) || !f.master[col]) continue;
+          var mv = r.master && r.master.extra ? r.master.extra[col] : null;
+          if (f.master[col] === '__none__' ? mv !== null && mv !== undefined : mv !== f.master[col]) return false;
+        }
+      }
       return true;
     });
+  }
+
+  // 物件マスターにあるのに、基準週の物件レコードがない物件（週報未提出・読取失敗・未紐付け）
+  function missingProperties(model, period) {
+    var have = {};
+    recordsForPeriod(model, period).forEach(function (r) { if (r.key) have[r.key] = true; });
+    return model.master.entries.filter(function (e) { return !have[e.key]; });
   }
 
   // ---------- 書式 ----------
@@ -1587,6 +1615,7 @@
     recordsForPeriod: recordsForPeriod, previousPeriod: previousPeriod, summarize: summarize, sumField: sumField,
     UNIT_CONDITION_FIELDS: UNIT_CONDITION_FIELDS, UNIT_STATUS_LABELS: UNIT_STATUS_LABELS, WORK_TYPE_LABELS: WORK_TYPE_LABELS,
     parseDateValue: parseDateValue, unitsForPeriod: unitsForPeriod, computeUnitActivity: computeUnitActivity, vacancyRanking: vacancyRanking,
+    missingProperties: missingProperties,
     computeAlerts: computeAlerts, rateBand: rateBand, filterRecords: filterRecords, displayName: displayName,
     fmtNum: fmtNum, fmtCount: fmtCount, fmtRate: fmtRate, fmtPt: fmtPt, fmtDelta: fmtDelta, fmtMoney: fmtMoney,
     moneyUnitLabel: moneyUnitLabel, confidenceLabel: confidenceLabel, exportRecordsCSV: exportRecordsCSV, csvCell: csvCell

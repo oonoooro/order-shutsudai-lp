@@ -85,6 +85,8 @@
       weekEndDay: 0,
       // dashboard_data.json に残す週数（前回分の引継ぎを含む）
       historyWeeks: 12,
+      // 住戸明細を残す週数（前週比較に使う。2 = 今週と前週）
+      unitHistoryWeeks: 2,
       // 物件名の照合で無視する共通の接頭語（例: シリーズ名）。ファイル名に物件名の一部しかない場合に使う
       stripNamePrefixes: []
     },
@@ -139,6 +141,8 @@
         'user_name', 'username', 'person', 'owner_name', 'sharepoint', 'url', 'path',
         '入居者', '申込者', '契約者', '保証', '氏名', '担当者', '電話', 'メール', '連絡先'
       ],
+      // 上の除外対象でも、物件マスターの絞り込み項目として表示を許可する列（例: '担当者'）。既定は許可しない
+      allowedMasterColumns: [],
       // 表示文字列から伏せる情報
       maskLabel: '［非表示］'
     }
