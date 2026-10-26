@@ -18,19 +18,23 @@ const MASTER = [
 
 test('物件マスター: 既知の列以外（TMK など）を絞り込み項目として読み込む', () => {
   const m = core.loadMaster(MASTER, config);
-  assert.deepEqual(m.extraColumns, ['TMK']);
+  assert.deepEqual(m.extraColumns, ['TMK', '担当者']);
   assert.equal(m.byKey['201'].extra.TMK, '架空TMK1');
   assert.equal(m.byKey['204'].extra.TMK, null, '空欄は null');
 });
 
-test('物件マスター: 個人名の可能性がある列（担当者）は既定では読まず、許可すれば読む', () => {
-  const m = core.loadMaster(MASTER, config);
+test('物件マスター: 個人名の可能性がある列は許可した列（担当者＝イニシャル運用）だけ読み、それ以外は読まない', () => {
+  const deny = Object.assign({}, config, { privacy: Object.assign({}, config.privacy, { allowedMasterColumns: [] }) });
+  const m = core.loadMaster(MASTER, deny);
   assert.ok(m.issues.some((i) => i.type === 'privacy_stripped' && /担当者/.test(i.message)));
   assert.equal(JSON.stringify(m.entries).indexOf('架空担当'), -1);
-  const cfg = Object.assign({}, config, { privacy: Object.assign({}, config.privacy, { allowedMasterColumns: ['担当者'] }) });
-  const m2 = core.loadMaster(MASTER, cfg);
+  assert.deepEqual(config.privacy.allowedMasterColumns, ['担当者']);
+  const m2 = core.loadMaster(MASTER, config);
   assert.deepEqual(m2.extraColumns, ['TMK', '担当者']);
   assert.equal(m2.byKey['203'].extra['担当者'], '架空担当A');
+  // 許可していない個人情報らしい列（連絡先など）は従来どおり読まない
+  const m4 = core.loadMaster('project_number,property_name_ja,連絡先\n1,架空,03-0000-0000\n', config);
+  assert.deepEqual(m4.extraColumns, []);
 });
 
 test('絞り込み: 物件マスターの追加列の値・「データなし」で物件を絞り込める', () => {

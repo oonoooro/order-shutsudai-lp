@@ -41,7 +41,7 @@
 - **長期空室の基準日数・稼働率低下の閾値:** `config.js` の `alerts.longVacancyDays`・`alerts.occupancyDropThreshold`
 - **稼働率帯の区切り:** `config.js` の `occupancyBands`
 - **金額を円表示にする:** `config.js` の `display.moneyUnit` を `'yen'`
-- **物件マスターの列で絞り込む:** マスター CSV に列を足すだけで、絞り込みが自動で増える。個人名の列（担当者など）は `config.js` の `privacy.allowedMasterColumns` に列名を書いた場合だけ表示する。
+- **物件マスターの列で絞り込む:** マスター CSV に列を足すだけで、絞り込みが自動で増える。個人名の可能性がある列は `config.js` の `privacy.allowedMasterColumns` に列名を書いた場合だけ表示する（「担当者」はイニシャルで運用しているため許可済み。氏名の列は許可しない）。
 - **物件一覧の列:** `app.js` の `LIST_COLUMNS`
 - **KPI カード:** `app.js` の `renderSummary`
 - **アラートの区分・条件:** `core.js` の `ALERT_CATEGORIES` と `computeAlerts`

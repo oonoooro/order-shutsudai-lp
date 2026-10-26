@@ -25,8 +25,8 @@ AGENTS.md のルールに従って、app.js の物件一覧（LIST_COLUMNS）に
 ```
 
 ```
-AGENTS.md のルールに従って、物件マスターの「担当者」列で絞り込めるようにしてください。
-（担当者名は個人名のため、config.js の privacy.allowedMasterColumns に '担当者' を追加する方法で行ってください）
+AGENTS.md のルールに従って、物件マスターの「AM担当」列（イニシャルで管理）でも絞り込めるようにしてください。
+個人名の可能性がある列のため、config.js の privacy.allowedMasterColumns に 'AM担当' を追加する方法で行ってください。
 ```
 
 ```
