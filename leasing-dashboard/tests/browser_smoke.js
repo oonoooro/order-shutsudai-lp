@@ -152,6 +152,7 @@ async function main() {
   await dpage.selectOption('#f-master select', '架空TMK2');
   check((await dpage.locator('#view-list tbody tr').count()) === 1, 'マスターの追加列（TMK）で物件を絞り込める');
   // data/ に dashboard_data.json がない状態で開き直すと、ブラウザに保存した取込結果を表示する
+  await dpage.waitForSelector('body[data-saved]', { timeout: 15000 });
   fs.renameSync(path.join(tmp, 'dashboard_data.json'), path.join(tmp, 'dashboard_data.json.bak'));
   await dpage.reload();
   await dpage.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
@@ -160,6 +161,27 @@ async function main() {
   check(derrors.length === 0, 'ドラッグ＆ドロップの流れでスクリプトエラーなし' + (derrors.length ? ': ' + derrors.join(' | ') : ''));
   if (SHOTS) await dpage.screenshot({ path: path.join(SHOTS, 'dragdrop.png'), fullPage: false });
   await ctx.close();
+
+  // Node.js のない PC の使い方: index.html を直接開いて週報をドロップ → 開き直しても残る
+  const fctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  const fp = await fctx.newPage();
+  const ferr = [];
+  fp.on('pageerror', (e) => ferr.push(String(e)));
+  await fp.goto('file://' + path.join(__dirname, '..', 'index.html'));
+  await fp.waitForSelector('#dropzone');
+  await fp.setInputFiles('#file-input', fs.readdirSync(xdir).map((f) => payload(path.join(xdir, f))).concat([payload(path.join(__dirname, 'fixtures', 'weekly_master.csv'))]));
+  await fp.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  await fp.waitForSelector('body[data-saved]', { timeout: 15000 });
+  await fp.reload();
+  await fp.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  check(/ブラウザに保存した取込結果/.test(await fp.textContent('#banners')), 'index.html を直接開いた場合も、ドロップした取込結果が開き直したあとに残る');
+  check(ferr.length === 0, 'index.html を直接開いた場合にスクリプトエラーなし' + (ferr.length ? ': ' + ferr.join(' | ') : ''));
+  // 自己診断ページ（Node.js なしでの確認用）
+  const sp = await fctx.newPage();
+  await sp.goto('file://' + path.join(__dirname, '..', 'selftest.html'));
+  await sp.waitForSelector('body[data-result]', { timeout: 30000 });
+  check((await sp.getAttribute('body', 'data-result')) === 'ok', '自己診断ページ（selftest.html）がすべて OK: ' + (await sp.textContent('#summary')));
+  await fctx.close();
 
   await browser.close();
   await new Promise((r) => server.close(r));

@@ -18,7 +18,11 @@
 `data/` フォルダに上の 3 ファイルを置きます。ファイル名は固定で、日付は含めません。
 `data/` の中身は `.gitignore` によりリポジトリに含まれません。
 
-### 2. 起動する（Node.js 18 以上）
+### 2. 起動する
+
+Node.js がない PC では、`index.html` をダブルクリックで開きます。その画面に週報 Excel・物件マスターをドラッグ＆ドロップすると表示されます（`data/` フォルダは自動では読めません）。
+
+Node.js 18 以上がある場合は、次のコマンドで起動すると `data/` フォルダのデータも自動で読み込みます。
 
 ```sh
 ./start.sh            # macOS / Linux
@@ -51,9 +55,13 @@ Node.js がない場合は `index.html` をブラウザで直接開き、右上�
 - 物件明細に複数週の `report_date` があれば「基準週」で切り替えられ、前週比・週次推移に使われます。
 - `dashboard_data.json` が不正な JSON の場合は更新せず、前回正常に読み込んだデータを表示したまま警告バナーを出します（前回データはこのブラウザ内の IndexedDB に保存。外部には送りません）。
 
-## Copilot で編集する
+## Microsoft 365 Copilot で編集する
 
-Microsoft 365 Copilot や GitHub Copilot に指示して編集できるよう、守るべきルールとファイルの役割を `AGENTS.md` にまとめています。手順と指示文の例は `COPILOT_GUIDE.md` を参照してください（GitHub Copilot は `.github/copilot-instructions.md` を自動で読みます）。
+Microsoft 365 Copilot（法人版）に指示して編集できるよう、次のものを用意しています。手順と指示文の例は `COPILOT_GUIDE.md` を参照してください。
+
+- `AGENTS.md`（同じ内容の `copilot/knowledge_AGENTS.txt`）: 守るべきルールとファイルの役割
+- `copilot/agent_instructions.txt`: Copilot の編集用エージェントの「指示」に貼る文（8,000 文字以内）
+- `selftest.html`: Node.js がなくても、ブラウザで開くだけで主要なルールを確認できる自己診断ページ。Copilot の回答を反映したあとに開き、すべて OK になることを確認します。
 
 ## 画面
 
@@ -185,6 +193,8 @@ npm test               # 単体・結合テスト（node:test、外部依存な�
 npm run test:browser   # ブラウザ確認（Playwright がある環境のみ。なければスキップ）
 ```
 
+Node.js がない場合は `selftest.html` をブラウザで開きます（表示ルール・検証・集計・住戸・マスター・週報 Excel の解析・個人情報の除外など 23 項目）。自己診断に埋め込む架空の Excel は、`node scripts/build-selftest-fixtures.js` で更新します。
+
 自動テストの対象:
 
 - JSON 構文（不正 JSON の検出と位置表示、BOM、構造不正）
@@ -198,7 +208,7 @@ npm run test:browser   # ブラウザ確認（Playwright がある環境のみ�
 - 未知の列が追加された場合の後方互換性（JSON・CSV、列の並び替え、最小構成）
 - 週報 Excel の解析: 様式 A〜D の判定と抽出、計算結果のない数式の扱い、期間別シートの差分による重複排除、同一ファイルの二重読込、同じ物件・週の別様式を合算しないこと、現況が空欄の住戸を推測しないこと、個人情報の列を出力しないこと、物件の紐付け、前回データの引継ぎ、元ファイルを変更しないこと（フィクスチャは `tests/fixtures/make_weekly_xlsx.py` で生成した架空データ）
 - 物件マスター: 追加列（TMK 等）の読込と絞り込み、個人名の列の既定除外と許可、データのない物件の一覧、ファイル名の照合（区切り・最長一致・共通接頭語の自動検出・対応表の優先）、住戸明細の保存週数
-- Copilot 向けガイド（AGENTS.md・COPILOT_GUIDE.md）に書いた関数名・設定名がコードに実在すること
+- Copilot 向けガイド（AGENTS.md・COPILOT_GUIDE.md・エージェントの指示文）に書いた関数名・設定名がコードに実在すること、指示文が 8,000 文字以内であること、自己診断ページの埋め込みデータがフィクスチャと一致すること
 - 住戸明細: 空室日数の計算、今週の新規申込・申込取消・新規解約（日付と状態変化）、賃料条件の変更、工事の残り日数・完了予定超過、住戸の重複・未登録・形式不正、物件の空室戸数との突合、`units` がない場合の後方互換、空室率ランキング
 - 件数突合・検証行の欠落、対象週（source_period）、プライバシー処理、CSV の数式インジェクション対策、フィルター、アラート判定
 - 外部 CDN・外部通信・innerHTML を使っていないこと、日付のハードコードがないこと、ローカルサーバーのパス遡り防止
@@ -211,8 +221,9 @@ npm run test:browser   # ブラウザ確認（Playwright がある環境のみ�
 ```
 leasing-dashboard/
 ├── AGENTS.md               Copilot など AI アシスタント向けの編集ルール
-├── COPILOT_GUIDE.md        Copilot で編集する手順と指示文の例
-├── .github/copilot-instructions.md  GitHub Copilot 用の指示
+├── COPILOT_GUIDE.md        Microsoft 365 Copilot で編集する手順と指示文の例
+├── copilot/                エージェントの指示文（agent_instructions.txt）と知識用のルール（knowledge_AGENTS.txt）
+├── selftest.html           Node.js なしで実行できる自己診断ページ
 ├── index.html              画面
 ├── styles.css              スタイル（ライト/ダーク）
 ├── app.js                  画面ロジック

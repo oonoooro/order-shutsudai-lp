@@ -156,6 +156,23 @@ test('AGENTS.md（Copilot 向けガイド）に書いた関数名・設定名が
     const bare = n.replace(/^function /, '').replace(/\($/, '');
     assert.ok(guide.includes(bare), 'ガイドに ' + bare + ' の記載がない');
   }));
-  assert.ok(fs.existsSync(path.join(ROOT, '.github', 'copilot-instructions.md')));
   assert.ok(fs.existsSync(path.join(ROOT, 'tests', 'fixtures', 'make_weekly_xlsx.py')));
+});
+
+test('Microsoft 365 Copilot 用: エージェントの指示は 8,000 文字以内、知識の .txt は AGENTS.md と同じ内容', () => {
+  const instr = read('copilot/agent_instructions.txt');
+  assert.ok([...instr].length <= 8000, '指示が ' + [...instr].length + ' 文字');
+  assert.equal(read('copilot/knowledge_AGENTS.txt'), read('AGENTS.md'), 'AGENTS.md を変えたら copilot/knowledge_AGENTS.txt にもコピーする');
+  ['config.js', 'app.js', 'core.js', 'ingest.js', 'selftest.html', 'LIST_COLUMNS', 'renderSummary', 'computeUnitActivity', 'ALERT_CATEGORIES', 'allowedMasterColumns', 'occupancyBands'].forEach((n) => {
+    assert.ok(instr.includes(n), '指示に ' + n + ' の記載がない');
+  });
+  ['renderUnits', 'computeUnitActivity'].forEach((n) => assert.ok((read('app.js') + read('core.js')).includes(n)));
+});
+
+test('自己診断ページ: 埋め込んだ架空の週報 Excel がフィクスチャと一致する', () => {
+  const { build, OUT } = require('../scripts/build-selftest-fixtures');
+  assert.equal(fs.readFileSync(OUT, 'utf8'), build(), 'node scripts/build-selftest-fixtures.js を実行して更新する');
+  const html = read('selftest.html');
+  ['config.js', 'core.js', 'xlsx.js', 'ingest.js', 'tests/browser/selftest_fixtures.js', 'tests/browser/selftest.js'].forEach((s) => assert.ok(html.includes('src="' + s + '"'), s));
+  assert.doesNotMatch(read('tests/browser/selftest.js'), /innerHTML|eval\(/);
 });

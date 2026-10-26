@@ -1,4 +1,4 @@
-# AI アシスタント（Copilot・Claude など）向けの編集ガイド
+# AI アシスタント（Microsoft 365 Copilot など）向けの編集ガイド
 
 このフォルダは、不動産ポートフォリオの週次リーシングダッシュボードです。静的な HTML / CSS / JavaScript だけで動き、ビルドや外部ライブラリはありません。編集するときは、この文書のルールを必ず守ってください。
 
@@ -11,7 +11,7 @@
 5. **物件名は物件マスターを正とする。** 結合キーは Project #。
 6. **文字列を HTML として挿入しない。** `innerHTML` などは使わず、`app.js` の `h()`（`textContent` で入れる）を使う。
 7. **ファイル名や設定に特定週の日付を書かない。** 対象週は `report_metadata.source_period` から決まる。
-8. **変更したら必ずテストを実行し、すべて成功させる。** `npm test`（Node.js 18 以上）。画面を変えた場合は `npm run test:browser` も実行する。
+8. **変更したら必ず確認し、すべて成功させる。** Node.js がない PC では `selftest.html` をブラウザで開き、すべて OK になることを確認する。Node.js がある場合は `npm test`（画面を変えた場合は `npm run test:browser` も）。
 
 ## ファイルの役割
 
@@ -25,15 +25,16 @@
 | `xlsx.js` | Excel の読込（ZIP と XML を自前で処理） | 通常は変更不要 |
 | `ingest.js` | 週報 Excel の様式判定（A〜D）と抽出・標準化 | 新しい様式の追加、見出しの別名の追加 |
 | `scripts/` | ローカルサーバー・データ検証・週報解析のコマンド | — |
-| `tests/` | 自動テスト（データはすべて架空） | 変更に合わせてテストを追加 |
+| `tests/` | 自動テスト（データはすべて架空）。`tests/browser/selftest.js` は `selftest.html` で動く自己診断 | 変更に合わせてテストを追加 |
+| `selftest.html` | Node.js なしで実行できる自己診断ページ | 確認項目の追加は `tests/browser/selftest.js` |
 | `sample_data_schema.json` | 入力データの項目定義 | 項目を増やしたら更新 |
 
 ## 変更の手順
 
 1. 変更したい内容が、上の表のどのファイルに当たるかを決める。設定で済むものは `config.js` だけを変える。
 2. 既存の書き方（関数の構成、日本語のコメント、`h()` による要素作成）に合わせて変更する。
-3. 計算や判定を変えた場合は `tests/` に架空データでテストを追加する。実在の物件名・社名・人名をテストやサンプルに書かない。
-4. `npm test` を実行し、すべて成功することを確認する。
+3. 計算や判定を変えた場合は `tests/browser/selftest.js` に架空データの確認項目を追加する（Node.js がある場合は `tests/` にもテストを追加する）。実在の物件名・社名・人名をテストやサンプルに書かない。
+4. `selftest.html` をブラウザで開き、すべて OK になることを確認する（Node.js がある場合は `npm test` も）。
 5. `README.md` の該当箇所を更新する。
 
 ## よくある変更の場所
@@ -46,4 +47,11 @@
 - **KPI カード:** `app.js` の `renderSummary`
 - **アラートの区分・条件:** `core.js` の `ALERT_CATEGORIES` と `computeAlerts`
 - **週報の見出しの表記ゆれ:** `ingest.js` の各様式（`parseA` / `parseB` / `parseC` / `parseD`）の `findHeader` に別名を追加
-- **新しい週報の様式:** `ingest.js` の `detectFormat` に判定を追加し、`parseX` を作る。架空のフィクスチャを `tests/fixtures/make_weekly_xlsx.py` に追加してテストする。
+- **新しい週報の様式:** `ingest.js` の `detectFormat` に判定を追加し、`parseX` を作る。架空のフィクスチャを `tests/fixtures/make_weekly_xlsx.py` に追加してテストする（Python と Node.js が必要。ない場合は様式の見本を添えて開発者に依頼する）。
+
+## 回答の出し方（Copilot 向け）
+
+- 変更は「どのファイルの、どの関数（またはどの設定）を、どう変えるか」を先に説明する。
+- 変更後のコードは、関数単位（または設定のブロック単位）で、置き換える範囲の最初と最後の行がわかるように出す。ファイル全体の出力を求められた場合だけ全体を出す。
+- ファイルの文字コードは UTF-8 のまま保存するよう利用者に伝える。
+- 変更後は `selftest.html` を開いて確認するよう利用者に伝える。

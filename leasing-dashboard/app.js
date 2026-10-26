@@ -72,6 +72,8 @@
   // ---------- 読込 ----------
 
   function fetchText(path) {
+    // ファイルを直接開いた場合（file://）は data/ を読めないため、読みに行かない
+    if (window.location.protocol === 'file:') return Promise.resolve({ ok: false, network: true });
     var url = path + (path.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
     return fetch(url, { cache: 'no-store', credentials: 'same-origin' }).then(function (res) {
       if (!res.ok) return { ok: false, status: res.status };
@@ -225,7 +227,12 @@
 
   function writeCache(texts, source) {
     var t = Object.assign({}, texts, { mappingText: state.mappingText || null });
-    Store.set('last-good', { texts: t, source: source, loadedAt: new Date().toISOString() });
+    document.body.removeAttribute('data-saved');
+    return Store.set('last-good', { texts: t, source: source, loadedAt: new Date().toISOString() }).then(function (ok) {
+      // 保存の完了を記録する（自動テストが開き直す前に待つため）
+      if (ok) document.body.setAttribute('data-saved', String(Date.now()));
+      return ok;
+    });
   }
 
   // ローカルファイル選択（ブラウザ内で読むだけで送信しない）

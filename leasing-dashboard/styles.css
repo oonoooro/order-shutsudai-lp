@@ -306,3 +306,10 @@ body.dragging .drop-overlay { display: flex; }
 .filters-master { display: flex; flex-wrap: wrap; gap: 8px 12px; width: 100%; padding-top: 6px; border-top: 1px dashed var(--grid); }
 .filters-master[hidden] { display: none; }
 @media (max-width: 640px) { .dropzone { margin-left: 16px; margin-right: 16px; } }
+
+/* 自己診断ページ */
+.selftest-summary { font-size: 18px; font-weight: 600; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); }
+.selftest-summary.ok { background: var(--good-bg); color: var(--delta-up); border-color: var(--good); }
+.selftest-summary.ng { background: var(--critical-bg); color: var(--critical); border-color: var(--critical); }
+tr.ng td { background: var(--critical-bg); }
+tr.ok td:last-child { color: var(--delta-up); font-weight: 600; }
