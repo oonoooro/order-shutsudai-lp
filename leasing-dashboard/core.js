@@ -40,7 +40,7 @@
   ];
   var NAME_FIELDS = ['project_name', 'property_name_ja', 'property_name_en', 'spc', 'am', 'pm'];
   var MONEY_FIELDS = ['current_rent', 'asking_rent', 'rent_revision_amount'];
-  var KNOWN_ROOT_KEYS = ['schema_version', 'report_metadata', 'portfolio_summary', 'properties', 'units', 'alerts', 'validation_summary', 'file_inventory'];
+  var KNOWN_ROOT_KEYS = ['schema_version', 'report_metadata', 'portfolio_summary', 'properties', 'units', 'unit_events', 'action_items', 'alerts', 'validation_summary', 'file_inventory'];
   var KNOWN_META_KEYS = ['report_date', 'source_period', 'file_count_expected', 'file_count_processed', 'file_count_failed', 'generated_by', 'contains_personal_data', 'is_sample', 'is_provisional'];
   var META_NUMERIC = ['file_count_expected', 'file_count_processed', 'file_count_failed'];
   var VALIDATION_SUMMARY_NUMERIC = ['success', 'partial', 'failed', 'property_linked', 'duplicate_candidates', 'low_confidence_records'];
@@ -51,7 +51,7 @@
   var UNIT_NUMERIC_FIELDS = ['floor_area_sqm', 'vacancy_days', 'current_rent', 'asking_rent', 'common_fee', 'ad', 'fr', 'deposit_months', 'key_money_months'];
   var UNIT_DATE_FIELDS = ['vacancy_start_date', 'move_out_date', 'notice_date', 'application_date', 'application_cancel_date',
     'work_start_date', 'work_end_date', 'work_completed_date'];
-  var UNIT_TEXT_FIELDS = ['report_date', 'project_number', 'unit_number', 'layout', 'leasing_status', 'work_type', 'unit_note', 'data_confidence', 'source_file_name'];
+  var UNIT_TEXT_FIELDS = ['report_date', 'project_number', 'unit_number', 'layout', 'leasing_status', 'work_type', 'unit_note', 'data_confidence', 'source_file_name', 'counts_as_vacant'];
   // 賃料条件として前週と比較する項目
   var UNIT_CONDITION_FIELDS = [
     { key: 'asking_rent', label: '募集賃料', money: true },
@@ -442,7 +442,7 @@
     var issues = [];
     var ds = {
       meta: {}, summary: { present: false, status: null, is_provisional: false, reason: null, reason_label: null, values: {} },
-      properties: [], units: [], alerts: [], validationSummary: { present: false }, fileInventory: [],
+      properties: [], units: [], unitEvents: [], actionItems: [], alerts: [], validationSummary: { present: false }, fileInventory: [],
       unknownColumns: { root: [], meta: [], property: [] }, issues: issues
     };
     if (!json || typeof json !== 'object' || Array.isArray(json)) {
@@ -594,6 +594,8 @@
       ds.fileInventory.push({ file_name: name, status: ['success', 'partial', 'failed'].indexOf(st) !== -1 ? st : 'unknown', status_raw: sanitizeText(f.status, config).value });
     });
     ds.units = normalizeUnits(json.units, ds.meta.period, config, issues);
+    ds.unitEvents = normalizeUnitEvents(json.unit_events, ds.meta.period, config, issues);
+    ds.actionItems = normalizeActionItems(json.action_items, config, issues);
     return ds;
   }
 
@@ -863,6 +865,7 @@
         u.work_type = null;
       }
       u.confidence = normalizeConfidence(raw.data_confidence);
+      u.countsAsVacant = raw.counts_as_vacant === true ? true : raw.counts_as_vacant === false ? false : null;
       u.period = normalizePeriod(raw.report_date) || metaPeriod;
       if (!u.project_key) issues.push(issue('missing_project_number', 'error', ctx + ' に project_number がありません。'));
       if (!u.unit_number) issues.push(issue('missing_unit_number', 'error', ctx + ' に unit_number（住戸番号）がありません。', { project_number: u.project_key }));
@@ -872,6 +875,45 @@
     var denied = Object.keys(deniedSeen), unknown = Object.keys(unknownSeen);
     if (denied.length) issues.push(issue('privacy_stripped', 'warning', '住戸明細の個人情報の可能性がある列を読み込みませんでした: ' + denied.join(', '), { columns: denied }));
     if (unknown.length) issues.push(issue('unknown_column', 'info', 'units の未知の列を無視しました: ' + unknown.join(', '), { columns: unknown }));
+    return out;
+  }
+
+  // 解析時に判明した住戸の動き（期間別シートの差分・条件変更の記載など）
+  var UNIT_EVENT_TYPES = ['application', 'application_cancel', 'notice', 'condition_change'];
+  function normalizeUnitEvents(list, metaPeriod, config, issues) {
+    var out = [];
+    if (list === undefined || list === null) return out;
+    if (!Array.isArray(list)) { issues.push(issue('invalid_structure', 'error', 'unit_events が配列ではありません。')); return out; }
+    list.forEach(function (e, idx) {
+      if (!e || typeof e !== 'object') return;
+      if (UNIT_EVENT_TYPES.indexOf(e.type) === -1) { issues.push(issue('unit_status_unknown', 'warning', 'unit_events[' + idx + '] の type「' + sanitizeText(e.type, config).value + '」は未対応です。')); return; }
+      var d = parseDateValue(e.date), mo = parseDateValue(e.move_out_date);
+      out.push({
+        type: e.type, project_key: normalizeKey(e.project_number),
+        unit_number: e.unit_number === null || e.unit_number === undefined ? null : normText(sanitizeText(e.unit_number, config).value),
+        period: normalizePeriod(e.report_date) || metaPeriod, date: d.text || null, move_out_date: mo.text || null,
+        basis: e.basis === 'diff' || e.basis === 'source' ? e.basis : 'source',
+        detail: sanitizeText(e.detail, config).value
+      });
+    });
+    return out;
+  }
+
+  function normalizeActionItems(list, config, issues) {
+    var out = [];
+    if (list === undefined || list === null) return out;
+    if (!Array.isArray(list)) { issues.push(issue('invalid_structure', 'error', 'action_items が配列ではありません。')); return out; }
+    list.forEach(function (a) {
+      if (!a || typeof a !== 'object') return;
+      var t = function (k) { var v = sanitizeText(a[k], config).value; return v === null || v === '' ? null : v; };
+      var due = parseDateValue(a.due_date);
+      out.push({
+        project_key: normalizeKey(a.project_number), property_label: t('property_label'), due_date: due.text || null, due_day: due.value,
+        priority: t('priority'), status: t('status'), category: t('category'), action: t('action'), latest_update: t('latest_update'),
+        source_file_name: baseName(t('source_file_name')),
+        done: /完了/.test(t('status') || '') && !/未完了/.test(t('status') || '')
+      });
+    });
     return out;
   }
 
@@ -917,7 +959,10 @@
       if (!u.key || u.duplicate) return;
       var k = u.project_key + '|' + u.period;
       counts[k] = counts[k] || { n: 0, unknown: 0 };
-      if (u.status === null) counts[k].unknown++;
+      // 元の週報の定義（counts_as_vacant）があればそれに従う
+      if (u.countsAsVacant === true) counts[k].n++;
+      else if (u.countsAsVacant === false) return;
+      else if (u.status === null) counts[k].unknown++;
       else if (config.units.vacantStatuses.indexOf(u.status) !== -1) counts[k].n++;
     });
     Object.keys(counts).forEach(function (k) {
@@ -951,6 +996,7 @@
       unitCount: cur.length, longVacancy: [], vacancyList: [], newApplications: [], cancellations: [], newNotices: [],
       conditionChanges: [], works: [], notJudged: { events: 0, conditions: 0 }
     };
+    var notJudged = {};
     cur.forEach(function (u) {
       var prev = prevMap[u.key] || null;
       var base = { unit: u, project_number: u.project_key, unit_number: u.unit_number };
@@ -963,7 +1009,7 @@
         if (inWindow(u.dates.application_date)) res.newApplications.push(Object.assign({ date: u.dateText.application_date, basis: 'date' }, base));
       } else if (u.status === 'application') {
         if (prev && (prev.status === 'vacant' || prev.status === 'notice')) res.newApplications.push(Object.assign({ date: null, basis: 'status', from: prev.status }, base));
-        else if (!prev) res.notJudged.events++;
+        else if (!prev) notJudged[u.key + '|application'] = true;
       }
       // 申込取消
       if (u.dates.application_cancel_date !== null) {
@@ -976,7 +1022,7 @@
         if (inWindow(u.dates.notice_date)) res.newNotices.push(Object.assign({ date: u.dateText.notice_date, moveOut: u.dateText.move_out_date, basis: 'date' }, base));
       } else if (u.status === 'notice') {
         if (prev && prev.status === 'occupied') res.newNotices.push(Object.assign({ date: null, moveOut: u.dateText.move_out_date, basis: 'status', from: prev.status }, base));
-        else if (!prev) res.notJudged.events++;
+        else if (!prev) notJudged[u.key + '|notice'] = true;
       }
       // 賃料条件の変更（前週の同じ住戸と比較）
       var hasCond = UNIT_CONDITION_FIELDS.some(function (c) { return isNum(u.values[c.key]); });
@@ -1000,6 +1046,24 @@
         }
       }
     });
+    // 解析時に判明した動き（前週シートとの差分・条件変更の記載）を加える。同じ住戸の同じ種類は 1 件
+    var curByKey = {};
+    cur.forEach(function (u) { curByKey[u.key] = u; });
+    var stub = function (no) { return { unit_number: no, text: { layout: null, unit_note: null }, dateText: {}, values: {}, invalid: {}, status: null }; };
+    var has = function (list, key) { return list.some(function (x) { return x.unit && x.unit.key === key; }); };
+    (model.unitEvents || []).forEach(function (e) {
+      if (e.period !== period || !e.project_key || !e.unit_number) return;
+      var key = e.project_key + '|' + normText(e.unit_number).toUpperCase();
+      var u = curByKey[key] || Object.assign(stub(e.unit_number), { key: key });
+      var base = { unit: u, project_number: e.project_key, unit_number: e.unit_number, basis: e.basis, detail: e.detail };
+      if (e.type === 'application' && !has(res.newApplications, key)) res.newApplications.push(Object.assign({ date: e.date }, base));
+      if (e.type === 'application_cancel' && !has(res.cancellations, key)) res.cancellations.push(Object.assign({ date: e.date }, base));
+      if (e.type === 'notice' && !has(res.newNotices, key)) res.newNotices.push(Object.assign({ date: e.date, moveOut: e.move_out_date }, base));
+      if (e.type === 'condition_change') res.conditionChanges.push(Object.assign({ changes: [{ key: 'note', label: '記載内容（' + (e.date || '') + '）', text: e.detail }] }, base));
+      // 解析時の差分・記載で判定できた住戸は「判定不可」から外す
+      delete notJudged[key + '|' + e.type];
+    });
+    res.notJudged.events = Object.keys(notJudged).length;
     res.vacancyList.sort(function (a, b) { return b.days - a.days; });
     res.longVacancy.sort(function (a, b) { return b.days - a.days; });
     res.works.sort(function (a, b) {
@@ -1056,7 +1120,7 @@
       ok: true,
       meta: ds.meta, summarySource: ds.summary, validationSummary: ds.validationSummary,
       jsonAlerts: ds.alerts, files: files, countsReconciled: countsOk,
-      master: master, report: report, records: records, units: units, periods: periods,
+      master: master, report: report, records: records, units: units, unitEvents: ds.unitEvents, actionItems: ds.actionItems, periods: periods,
       period: ds.meta.period, periodLabel: formatPeriod(ds.meta.period),
       unknownColumns: { json: ds.unknownColumns, master: master.unknownColumns, report: report.unknownColumns },
       issues: sortIssues(issues)

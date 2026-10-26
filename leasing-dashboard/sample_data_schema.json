@@ -877,6 +877,153 @@
               "null"
             ],
             "description": "元ファイル名（パスは含めない）"
+          },
+          "counts_as_vacant": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "（任意）元の週報の稼働率の定義でこの住戸を空室に数えるか。ある場合は物件の空室戸数との突合に使う"
+          }
+        }
+      }
+    },
+    "unit_events": {
+      "type": "array",
+      "description": "（任意）週報の解析で判明した住戸の動き。期間別シートの前週との差分（basis: diff）や条件変更の記載（basis: source）。今週の動きとして表示する",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "project_number",
+          "unit_number"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "report_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "対象週（週末の日付）"
+          },
+          "project_number": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "unit_number": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "type": {
+            "enum": [
+              "application",
+              "application_cancel",
+              "notice",
+              "condition_change"
+            ]
+          },
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "move_out_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "basis": {
+            "enum": [
+              "diff",
+              "source"
+            ]
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "action_items": {
+      "type": "array",
+      "description": "（任意）Action Points 型の対応事項。リーシングの数値には合算しない。メモ欄は含めない",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "project_number": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ]
+          },
+          "property_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latest_update": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -998,6 +1145,21 @@
         }
       ],
       "note": "1 ファイルにつき 1 行。file_inventory の全ファイルに行が必要。"
+    },
+    "source_mapping.csv": {
+      "encoding": "UTF-8（BOM 可）",
+      "columns": [
+        {
+          "name": "file_name_pattern",
+          "required": true,
+          "description": "ファイル名に含まれる文字（最長一致）"
+        },
+        {
+          "name": "project_number",
+          "required": true
+        }
+      ],
+      "note": "（任意）週報ファイルと Project # の対応表。ファイル名に物件名がそのまま含まれない場合に使う"
     }
   }
 }

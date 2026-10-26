@@ -17,9 +17,9 @@ var path = require('path');
 var ROOT = path.resolve(__dirname, '..');
 var APP_FILES = {
   '/': 'index.html', '/index.html': 'index.html', '/styles.css': 'styles.css',
-  '/app.js': 'app.js', '/core.js': 'core.js', '/config.js': 'config.js'
+  '/app.js': 'app.js', '/core.js': 'core.js', '/config.js': 'config.js', '/xlsx.js': 'xlsx.js', '/ingest.js': 'ingest.js'
 };
-var DATA_FILES = ['dashboard_data.json', 'property_master.csv', 'validation_report.csv'];
+var DATA_FILES = ['dashboard_data.json', 'property_master.csv', 'validation_report.csv', 'source_mapping.csv'];
 var TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.csv': 'text/csv; charset=utf-8'

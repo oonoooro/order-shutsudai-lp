@@ -15,7 +15,7 @@ test('外部 CDN・外部スクリプト・解析 SDK を使っていない', ()
   const html = read('index.html');
   const srcs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
   srcs.forEach((s) => assert.doesNotMatch(s, /^(https?:)?\/\//, 'external reference: ' + s));
-  ['app.js', 'core.js', 'config.js', 'styles.css', 'index.html'].forEach((f) => {
+  ['app.js', 'core.js', 'config.js', 'styles.css', 'index.html', 'xlsx.js', 'ingest.js'].forEach((f) => {
     const t = read(f);
     assert.doesNotMatch(t, /googletagmanager|google-analytics|gtag\(|analytics\.js|cdn\.|unpkg|jsdelivr|sendBeacon|XMLHttpRequest|WebSocket|@import/i, f);
   });
@@ -35,13 +35,13 @@ test('CSP で外部への接続を禁止している', () => {
 });
 
 test('画面ロジックは innerHTML 等で文字列を HTML として挿入しない（XSS 対策）', () => {
-  ['app.js', 'core.js'].forEach((f) => assert.doesNotMatch(read(f), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, f));
+  ['app.js', 'core.js', 'xlsx.js', 'ingest.js'].forEach((f) => assert.doesNotMatch(read(f), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, f));
 });
 
 test('設定のデータファイル名に特定週の日付を含めない', () => {
   const cfg = require('../config');
   assert.deepEqual(Object.values(cfg.dataFiles), ['data/dashboard_data.json', 'data/property_master.csv', 'data/validation_report.csv']);
-  ['app.js', 'core.js', 'config.js', 'index.html', 'scripts/serve.js', 'scripts/validate-data.js'].forEach((f) => {
+  ['app.js', 'core.js', 'config.js', 'index.html', 'xlsx.js', 'ingest.js', 'scripts/serve.js', 'scripts/validate-data.js', 'scripts/ingest-weekly.js'].forEach((f) => {
     assert.doesNotMatch(read(f), /20\d{2}[-/]?\d{2}[-/]?\d{2}/, f + ' に日付がハードコードされている');
   });
 });
@@ -133,4 +133,11 @@ test('sample_data_schema.json は住戸明細（units）の項目を定義して
   ['project_number', 'unit_number', 'leasing_status', 'vacancy_start_date', 'application_date', 'application_cancel_date',
     'notice_date', 'move_out_date', 'asking_rent', 'ad', 'fr', 'work_type', 'work_end_date', 'work_completed_date'].forEach((f) => assert.ok(props[f], f));
   assert.deepEqual(schema.properties.units.items.required, ['project_number', 'unit_number']);
+});
+
+test('sample_data_schema.json は解析結果の拡張（unit_events・action_items・対応表）を定義している', () => {
+  const schema = JSON.parse(read('sample_data_schema.json'));
+  assert.deepEqual(schema.properties.unit_events.items.properties.type.enum, ['application', 'application_cancel', 'notice', 'condition_change']);
+  assert.ok(schema.properties.action_items.items.properties.due_date);
+  assert.ok(schema['x-csv-schemas']['source_mapping.csv']);
 });

@@ -104,6 +104,33 @@ async function main() {
   check(/二重に選択/.test(await fpage.textContent('#banners')), '同一ファイルの二重選択を 1 件として扱い通知する');
   check(ferrors.length === 0, 'file:// でスクリプトエラーなし' + (ferrors.length ? ': ' + ferrors.join(' | ') : ''));
 
+  // 週報 Excel（架空のフィクスチャ）をブラウザ内で解析して表示できること
+  const xdir = path.join(__dirname, 'fixtures', 'weekly');
+  fs.copyFileSync(path.join(DATA, 'dashboard_data.json'), path.join(tmp, 'dashboard_data.json'));
+  const xpage = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+  const xerrors = [], xexternal = [];
+  xpage.on('pageerror', (e) => xerrors.push(String(e)));
+  xpage.on('request', (r) => { if (!r.url().startsWith(base) && !/^(data|blob|file):/.test(r.url())) xexternal.push(r.url()); });
+  await xpage.goto(base);
+  await xpage.waitForSelector('#header-meta strong');
+  // 日本語のファイル名はパス指定だと渡らないことがあるため、名前と中身を直接渡す
+  const payload = (p) => ({ name: path.basename(p), mimeType: 'application/octet-stream', buffer: fs.readFileSync(p) });
+  await xpage.setInputFiles('#file-input', fs.readdirSync(xdir).map((f) => payload(path.join(xdir, f))).concat([payload(path.join(__dirname, 'fixtures', 'weekly_master.csv'))]));
+  await xpage.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  check(/ブラウザ内で解析/.test(await xpage.textContent('#banners')), '週報 Excel をブラウザ内で解析して表示できる');
+  await xpage.click('.tab[data-tab="units"]');
+  const unitsText = await xpage.textContent('#view-units');
+  check(/前週シートとの差分で判定/.test(unitsText) && /501号室：礼金0ヶ月/.test(unitsText), '解析した住戸の動き（差分・条件変更の記載）を表示する');
+  await xpage.click('.tab[data-tab="summary"]');
+  check(/対応事項（Action Points/.test(await xpage.textContent('#view-summary')), '対応事項（Action Points）を表示する');
+  if (SHOTS) {
+    await xpage.screenshot({ path: path.join(SHOTS, 'excel_summary.png'), fullPage: true });
+    await xpage.click('.tab[data-tab="units"]');
+    await xpage.screenshot({ path: path.join(SHOTS, 'excel_units.png'), fullPage: true });
+  }
+  check(xerrors.length === 0, '週報 Excel の解析でスクリプトエラーなし' + (xerrors.length ? ': ' + xerrors.join(' | ') : ''));
+  check(xexternal.length === 0, '週報 Excel の解析で外部通信なし' + (xexternal.length ? ': ' + xexternal.join(', ') : ''));
+
   await browser.close();
   await new Promise((r) => server.close(r));
   fs.rmSync(tmp, { recursive: true, force: true });

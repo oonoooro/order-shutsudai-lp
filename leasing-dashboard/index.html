@@ -19,7 +19,7 @@
   <div class="header-actions">
     <button type="button" id="btn-reload" class="btn">データ再読込</button>
     <label class="btn btn-ghost" for="file-input">ファイルを選択</label>
-    <input type="file" id="file-input" accept=".json,.csv,application/json,text/csv" multiple hidden>
+    <input type="file" id="file-input" accept=".json,.csv,.xlsx,.xlsm,application/json,text/csv" multiple hidden>
     <button type="button" id="btn-theme" class="btn btn-ghost" aria-label="表示テーマ切替">テーマ</button>
   </div>
 </header>
@@ -67,6 +67,8 @@
 
 <script src="config.js"></script>
 <script src="core.js"></script>
+<script src="xlsx.js"></script>
+<script src="ingest.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -156,19 +156,22 @@
 
   // ローカルファイル選択（ブラウザ内で読むだけで送信しない）
   function loadFromFiles(fileList) {
-    var files = Array.prototype.slice.call(fileList || []);
-    if (!files.length) return;
+    var all = Array.prototype.slice.call(fileList || []);
+    if (!all.length) return;
+    var excel = all.filter(function (f) { return /\.(xlsx|xlsm)$/i.test(f.name); });
+    var files = all.filter(function (f) { return excel.indexOf(f) === -1; });
     Promise.all(files.map(function (f) {
       return f.text().then(function (t) { return { name: f.name, text: t }; });
     })).then(function (list) {
       var d = C.dedupeSourceFiles(list);
       var notes = d.duplicates.map(function (x) { return '同一内容のファイル「' + x.name + '」が二重に選択されたため、1件として扱いました。'; });
-      var roles = { dashboardDataText: [], propertyMasterText: [], validationReportText: [] }, unknown = [];
+      var roles = { dashboardDataText: [], propertyMasterText: [], validationReportText: [], mappingText: [] }, unknown = [];
       d.unique.forEach(function (f) {
         var role = classifyFile(f);
         if (role) roles[role].push(f); else unknown.push(f.name);
       });
       unknown.forEach(function (n) { notes.push('「' + n + '」は種類を判別できなかったため読み込みませんでした。'); });
+      if (excel.length) { loadFromExcel(excel, roles, notes); return; }
       var multi = Object.keys(roles).filter(function (k) { return roles[k].length > 1; });
       if (multi.length) {
         showTransientError('同じ種類のファイルが複数選択されています: ' + multi.map(function (k) { return roles[k].map(function (f) { return f.name; }).join(' / '); }).join('、') + '。1種類につき1ファイルを選択してください。');
@@ -195,9 +198,47 @@
       return C.safeParseJSON(f.text).ok ? 'dashboardDataText' : null;
     }
     var headers = C.parseCSV(f.text.split(/\r?\n/).slice(0, 2).join('\n')).headers;
+    if (C.mapColumns(headers, { p: ['file_name_pattern', 'ファイル名に含まれる文字'] }).map.p !== undefined) return 'mappingText';
     if (C.mapColumns(headers, CFG.validationReportColumns).map.file_name !== undefined) return 'validationReportText';
     if (C.mapColumns(headers, CFG.masterColumns).map.project_number !== undefined) return 'propertyMasterText';
     return null;
+  }
+
+  // 週報 Excel をブラウザ内で解析する（ファイルは送信しない）
+  function loadFromExcel(excelFiles, roles, notes) {
+    var I = window.LeasingIngest;
+    if (!I) { showTransientError('週報 Excel の解析機能（ingest.js）を読み込めませんでした。'); return; }
+    var fromSel = function (k) { return roles[k].length ? roles[k][0].text : null; };
+    var masterP = fromSel('propertyMasterText') !== null ? Promise.resolve(fromSel('propertyMasterText'))
+      : state.texts && state.texts.propertyMasterText ? Promise.resolve(state.texts.propertyMasterText)
+      : fetchText(CFG.dataFiles.propertyMaster).then(function (r) { return r.ok ? r.text : null; });
+    var mapP = fromSel('mappingText') !== null ? Promise.resolve(fromSel('mappingText'))
+      : fetchText(CFG.sourceMappingFile).then(function (r) { return r.ok ? r.text : null; });
+    var parsed = Promise.all(excelFiles.map(function (f) {
+      return f.arrayBuffer().then(function (b) { return I.parseWorkbookFile({ name: f.name, bytes: new Uint8Array(b) }, { config: CFG }); });
+    }));
+    Promise.all([masterP, mapP, parsed]).then(function (r) {
+      var prev = null;
+      if (state.model && !state.model.meta.is_sample && state.texts) {
+        var p = C.safeParseJSON(state.texts.dashboardDataText);
+        if (p.ok) prev = p.value;
+      }
+      var built = I.buildDashboardData(r[2], { config: CFG, masterText: r[0], mappingText: r[1], previousData: prev });
+      if (r[0] === null) notes.push('物件マスターがないため、週報を物件に紐付けできません。property_master.csv も一緒に選択してください。');
+      notes.push('週報 Excel ' + excelFiles.length + 'ファイルをこのブラウザ内で解析しました（外部には送信していません）。結果は「データ検証」タブから保存できます。');
+      state.lastBuilt = built;
+      applyTexts({ dashboardDataText: JSON.stringify(built.data, null, 2) + '\n', propertyMasterText: r[0], validationReportText: built.validationCSV }, 'excel', notes);
+    }).catch(function (e) { showTransientError('週報 Excel の解析に失敗しました: ' + (e && e.message ? e.message : e)); });
+  }
+
+  function saveText(name, textIn, type) {
+    var blob = new Blob([textIn], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = h('a', { href: url, download: name });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
   function showTransientError(msg) {
@@ -296,7 +337,7 @@
     el.appendChild(item('失敗', C.fmtCount(meta.file_count_failed, CFG, meta.file_count_failed_invalid)));
     if (c.summary.provisional) el.appendChild(provisionalBadge(c.summary.provisionalReasons));
     if (meta.is_sample) el.appendChild(badge('架空サンプル', 'sample'));
-    var src = state.source === 'files' ? 'ローカルファイル' : state.source === 'cache' ? '前回データ（ブラウザ保存）' : 'data/ フォルダ';
+    var src = state.source === 'files' ? 'ローカルファイル' : state.source === 'excel' ? '週報Excel（ブラウザ内で解析）' : state.source === 'cache' ? '前回データ（ブラウザ保存）' : 'data/ フォルダ';
     el.appendChild(h('span', { class: 'muted', text: '読込元: ' + src + ' / 読込 ' + fmtTime(state.loadedAt) }));
   }
 
@@ -446,6 +487,8 @@
     ]));
     // 今週の住戸の動き（要約）
     el.appendChild(unitDigest(c));
+    var ac = actionSummaryCard(c);
+    if (ac) el.appendChild(ac);
     // 前週からの主要変化
     var changes = c.recs.filter(function (r) { return r.text.major_change_from_previous_week; });
     el.appendChild(card('前週からの主要変化', changes.length ? h('ul', { class: 'change-list' }, changes.map(function (r) {
@@ -724,6 +767,7 @@
 
   function workLabel(u) {
     if (!u.work_type) return '—';
+    if (u.dateText.work_completed_date) return C.WORK_TYPE_LABELS[u.work_type] + '（完了 ' + u.dateText.work_completed_date + '）';
     return C.WORK_TYPE_LABELS[u.work_type] + (u.dateText.work_end_date ? '（完了予定 ' + u.dateText.work_end_date + '）' : '（完了予定日データなし）');
   }
 
@@ -810,7 +854,9 @@
 
     // 3. 今週の申込・解約
     var evRows = [];
-    var basisNote = function (x) { return x.basis === 'status' ? '日付なし（前週からの状態変化で判定）' : ''; };
+    var basisNote = function (x) {
+      return x.basis === 'status' ? '日付なし（前週からの状態変化で判定）' : x.basis === 'diff' ? '前週シートとの差分で判定' : x.basis === 'source' ? '週報の記載' : '';
+    };
     ua.newApplications.forEach(function (x) {
       evRows.push(h('tr', null, [h('td', null, badge('新規申込', 'badge-plain st-app')), propCell(c, x.project_number), unitNo(x), lay(x.unit),
         h('td', { class: 'nowrap', text: x.date || '—' }), h('td', { text: [basisNote(x), x.unit.text.unit_note].filter(Boolean).join(' / ') || '—' })]));
@@ -833,6 +879,11 @@
     ua.conditionChanges.forEach(function (x) {
       x.changes.forEach(function (ch, i) {
         var f = function (v) { return ch.money ? C.fmtMoney(v, CFG) : C.fmtNum(v, CFG); };
+        if (ch.text !== undefined) {
+          condRows.push(h('tr', null, [i === 0 ? propCell(c, x.project_number) : h('td'), i === 0 ? unitNo(x) : h('td'),
+            h('td', { text: ch.label }), h('td', { colspan: '3', class: 'cell-wrap-wide', text: ch.text || CFG.display.nullLabel })]));
+          return;
+        }
         condRows.push(h('tr', null, [
           i === 0 ? propCell(c, x.project_number) : h('td'), i === 0 ? unitNo(x) : h('td'),
           h('td', { text: ch.label }), numCell(f(ch.from)), numCell(f(ch.to)),
@@ -841,7 +892,7 @@
       });
     });
     el.appendChild(card('賃料条件の変更（前週 ' + (c.prevPeriod ? C.formatPeriod(c.prevPeriod) : '—') + ' との比較）', h('div', null, [
-      !ua.hasPrev ? empty('前週の住戸明細がないため比較できません（' + CFG.display.notJudgedLabel + '）')
+      !ua.hasPrev && !condRows.length ? empty('前週の住戸明細がないため比較できません（' + CFG.display.notJudgedLabel + '）')
         : condRows.length ? unitTable(['物件', '住戸', '項目', '変更前', '変更後', '差'], condRows, [3, 4, 5]) : empty('賃料条件の変更はありません'),
       ua.hasPrev && ua.notJudged.conditions ? h('p', { class: 'note', text: ua.notJudged.conditions + '戸は前週の明細にないため比較できません（今週から掲載された住戸）。' }) : null,
       h('p', { class: 'note', text: 'AD・FR は元データ単位のまま表示。' })
@@ -860,6 +911,45 @@
     el.appendChild(card('リノベーション・原状回復中の住戸', workRows.length
       ? unitTable(['物件', '住戸', '間取り', '工事', '開始', '完了予定', '残り', '募集状況'], workRows)
       : empty(ua.unitCount ? '工事中の住戸はありません' : '基準週の住戸明細がありません')));
+  }
+
+  function actionItemsFor(c, key) {
+    var items = c.m.actionItems || [];
+    if (key !== undefined) return items.filter(function (a) { return a.project_key === key; });
+    if (!c.filtered) return items;
+    var keys = {};
+    c.recs.forEach(function (r) { keys[r.key] = true; });
+    return items.filter(function (a) { return a.project_key && keys[a.project_key]; });
+  }
+
+  function actionTable(c, items, withProperty) {
+    var pd = C.parseDateValue(C.formatPeriod(c.period) || '').value;
+    var rows = items.slice().sort(function (a, b) { return (a.done - b.done) || ((a.due_day === null) - (b.due_day === null)) || (a.due_day - b.due_day); }).map(function (a) {
+      var overdue = !a.done && a.due_day !== null && pd !== null && a.due_day < pd;
+      return h('tr', null, [].concat(
+        withProperty ? [a.project_key ? propCell(c, a.project_key) : h('td', null, [h('span', { text: a.property_label || CFG.display.nullLabel }), ' ', badge('未紐付け', 'sev-warning')])] : [],
+        [h('td', { class: 'cell-wrap', text: a.category || CFG.display.nullLabel }),
+          h('td', { class: 'nowrap' }, [a.due_date || CFG.display.nullLabel, overdue ? ' ' : null, overdue ? badge('期限超過', 'sev-error') : null]),
+          h('td', { text: a.priority || '—' }),
+          h('td', null, badge(a.status || CFG.display.nullLabel, a.done ? 'conf-high' : 'badge-plain st-notice')),
+          h('td', { class: 'cell-wrap', text: a.action || '—' })]
+      ));
+    });
+    return unitTable([].concat(withProperty ? ['物件'] : [], ['対応事項', '期日', '優先度', '状況', '対応内容']), rows);
+  }
+
+  function actionSummaryCard(c) {
+    var items = actionItemsFor(c);
+    if (!(c.m.actionItems || []).length) return null;
+    var pd = C.parseDateValue(C.formatPeriod(c.period) || '').value;
+    var open = items.filter(function (a) { return !a.done; });
+    var overdue = open.filter(function (a) { return a.due_day !== null && pd !== null && a.due_day < pd; });
+    var shown = state.showAllActions ? open : open.slice(0, 8);
+    return card('対応事項（Action Points・未完了 ' + open.length + '件 / 期限超過 ' + overdue.length + '件）', h('div', null, [
+      h('p', { class: 'note', text: 'Action Points 型の週報から取り込んだ対応事項です。リーシングの数値には合算していません。' }),
+      open.length ? actionTable(c, shown, true) : empty('未完了の対応事項はありません'),
+      open.length > shown.length ? h('button', { type: 'button', class: 'linklike', text: '残り ' + (open.length - shown.length) + '件を表示', onclick: function () { state.showAllActions = true; render(); } }) : null
+    ]));
   }
 
   function unitListCard(c, key) {
@@ -1009,6 +1099,8 @@
     ])));
 
     el.appendChild(unitListCard(c, key));
+    var acts = actionItemsFor(c, key);
+    if (acts.length) el.appendChild(card('対応事項（Action Points）', actionTable(c, acts, false)));
     if (!r) {
       el.appendChild(card('基準週の詳細', empty('基準週 ' + C.formatPeriod(c.period) + ' のレコードがありません')));
       return;
@@ -1086,6 +1178,17 @@
       kpi('低確度データ', src(vs.low_confidence_records), vs.low_confidence_records === null, '検証レポートの low ' + m.report.rows.filter(function (r) { return r.confidence === 'low'; }).length + '件')
     ]);
     el.appendChild(grid);
+
+    // 週報 Excel を解析した場合は、結果を保存して data/ に置けるようにする
+    if (state.source === 'excel' && state.texts) {
+      el.appendChild(card('解析結果の保存', h('div', null, [
+        h('p', { class: 'note', text: '保存した dashboard_data.json と validation_report.csv を data/ フォルダに置くと、次回からこの結果を表示し、翌週の前週比較にも使われます。' }),
+        h('div', { class: 'header-actions' }, [
+          h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'dashboard_data.json を保存', onclick: function () { saveText('dashboard_data.json', state.texts.dashboardDataText, 'application/json'); } }),
+          h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'validation_report.csv を保存', onclick: function () { saveText('validation_report.csv', state.texts.validationReportText || '', 'text/csv'); } })
+        ])
+      ])));
+    }
 
     // 公開判定
     var jsonOk = true;

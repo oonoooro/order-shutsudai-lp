@@ -79,6 +79,18 @@
       }
     },
 
+    // 週報 Excel の解析（ingest.js）
+    ingest: {
+      // 週末とする曜日（0 = 日曜）。基準日・対象期間はこの曜日の週に揃える
+      weekEndDay: 0,
+      // dashboard_data.json に残す週数（前回分の引継ぎを含む）
+      historyWeeks: 12,
+      // 物件名の照合で無視する共通の接頭語（例: シリーズ名）。ファイル名に物件名の一部しかない場合に使う
+      stripNamePrefixes: []
+    },
+    // ファイル名と Project # の対応表（任意）
+    sourceMappingFile: 'data/source_mapping.csv',
+
     // 稼働率帯フィルター（min 以上 max 未満。max:null は上限なし）
     occupancyBands: [
       { id: 'lt80', label: '80%未満', min: 0, max: 0.8 },
