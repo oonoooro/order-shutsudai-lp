@@ -1,0 +1,22 @@
+{
+  "report_metadata": {
+    "report_date": "2026-01-12",
+    "source_period": "20260112",
+    "file_count_expected": 3,
+    "file_count_processed": 0,
+    "file_count_failed": 3,
+    "generated_by": "test fixture (fictional)",
+    "contains_personal_data": false
+  },
+  "portfolio_summary": { "status": "not_calculated", "is_provisional": false, "reason": "source_workbook_content_unavailable" },
+  "properties": [],
+  "alerts": [
+    { "severity": "error", "code": "SOURCE_CONTENT_UNAVAILABLE", "message": "3 files were inventoried, but contents could not be retrieved." }
+  ],
+  "validation_summary": { "success": 0, "partial": 0, "failed": 3, "property_linked": 0, "duplicate_candidates": 0, "low_confidence_records": 3 },
+  "file_inventory": [
+    { "file_name": "fictional_weekly_A.xlsx", "status": "failed" },
+    { "file_name": "fictional_weekly_B.xlsm", "status": "failed" },
+    { "file_name": "fictional_leasing_C.xlsx", "status": "failed" }
+  ]
+}

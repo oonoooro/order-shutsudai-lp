@@ -1,0 +1,18 @@
+{
+  "name": "leasing-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "不動産ポートフォリオの週次リーシングダッシュボード（静的 HTML/CSS/JS、外部依存なし）",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "start:sample": "node scripts/serve.js --data sample_data",
+    "validate": "node scripts/validate-data.js",
+    "validate:sample": "node scripts/validate-data.js --data sample_data",
+    "test": "node --test",
+    "test:browser": "node tests/browser_smoke.js"
+  }
+}

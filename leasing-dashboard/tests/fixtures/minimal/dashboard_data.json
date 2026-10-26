@@ -1,0 +1,28 @@
+{
+  "report_metadata": {
+    "report_date": "2026-01-12",
+    "source_period": "20260112",
+    "file_count_expected": 2,
+    "file_count_processed": 2,
+    "file_count_failed": 0,
+    "generated_by": "test fixture (fictional)",
+    "contains_personal_data": false
+  },
+  "portfolio_summary": { "status": "calculated", "is_provisional": false, "total_units": 30, "occupied_units": 27 },
+  "properties": [
+    { "report_date": "2026-01-05", "project_number": "T-001", "total_units": 10, "occupied_units": 10, "vacant_units": 0, "application_units": 0,
+      "occupancy_rate_source": 1, "occupancy_rate_calculated": 1, "occupancy_after_application_calculated": 1, "scheduled_termination_units": 0, "data_confidence": "high" },
+    { "report_date": "2026-01-12", "project_number": "T-001", "total_units": 10, "occupied_units": 9, "vacant_units": 1, "application_units": 1,
+      "occupancy_rate_source": 0.9, "occupancy_rate_calculated": 0.9, "occupancy_after_application_calculated": 1, "scheduled_termination_units": 1, "data_confidence": "high",
+      "source_file_name": "test_T-001.xlsx" },
+    { "report_date": "2026-01-12", "project_number": "T-002", "total_units": 20, "occupied_units": 18, "vacant_units": 2, "application_units": 0,
+      "occupancy_rate_source": 0.9, "occupancy_rate_calculated": 0.9, "occupancy_after_application_calculated": 0.9, "data_confidence": "medium",
+      "source_file_name": "test_T-002.xlsx" }
+  ],
+  "alerts": [],
+  "validation_summary": { "success": 2, "partial": 0, "failed": 0, "property_linked": 2, "duplicate_candidates": 0, "low_confidence_records": 0 },
+  "file_inventory": [
+    { "file_name": "test_T-001.xlsx", "status": "success" },
+    { "file_name": "test_T-002.xlsx", "status": "success" }
+  ]
+}

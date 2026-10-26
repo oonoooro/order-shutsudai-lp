@@ -1,0 +1,762 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sample_data_schema.json",
+  "title": "週次リーシングダッシュボード 入力データスキーマ",
+  "description": "dashboard_spec.md の入力契約を JSON Schema で表したもの。null は「データなし」、0 は「確認済みの 0」。未知の列は無視される（後方互換）ため additionalProperties は許可する。",
+  "type": "object",
+  "required": [
+    "report_metadata",
+    "properties"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "report_metadata": {
+      "type": "object",
+      "required": [
+        "source_period"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "report_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "レポート日"
+        },
+        "source_period": {
+          "type": [
+            "string",
+            "number"
+          ],
+          "description": "対象週（例: YYYYMMDD）。画面上の対象週として表示する"
+        },
+        "file_count_expected": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "想定ファイル数"
+        },
+        "file_count_processed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "処理できたファイル数"
+        },
+        "file_count_failed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "失敗ファイル数"
+        },
+        "generated_by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "生成元"
+        },
+        "contains_personal_data": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "個人情報を含むか"
+        },
+        "is_provisional": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "（任意）true なら全体を暫定表示"
+        },
+        "is_sample": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "（任意）true なら架空サンプルとして表示"
+        }
+      }
+    },
+    "portfolio_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "例: calculated / not_calculated"
+        },
+        "is_provisional": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "未算出等の理由コード"
+        },
+        "property_count": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "total_units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "occupied_units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "vacant_units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "application_units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "scheduled_contract_units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "scheduled_termination_units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "occupancy_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "occupancy_after_application": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "description": "数値があれば物件明細からの再計算値と突合する"
+    },
+    "properties": {
+      "type": "array",
+      "description": "Project # × report_date ごとに 1 レコード",
+      "items": {
+        "type": "object",
+        "required": [
+          "project_number"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "report_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "レポート日（YYYY-MM-DD 等）。基準週の判定に使う"
+          },
+          "project_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Project #（内部結合キー。property_master.csv と結合）"
+          },
+          "project_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "参考値。表示は property_master.csv を正とする"
+          },
+          "property_name_ja": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "参考値。表示は property_master.csv を正とする"
+          },
+          "property_name_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "参考値。表示は property_master.csv を正とする"
+          },
+          "spc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "参考値（マスター優先）"
+          },
+          "am": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "参考値（マスター優先）。会社名等。個人名は入れない"
+          },
+          "pm": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "参考値（マスター優先）。会社名等。個人名は入れない"
+          },
+          "occupancy_calculation_formula": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "稼働率の計算式（文字列）"
+          },
+          "major_change_from_previous_week": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "前週からの主要変化"
+          },
+          "leasing_issue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "リーシング課題"
+          },
+          "pm_comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PMコメント（個人名・連絡先を含めない）"
+          },
+          "am_review_item": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "AM確認事項"
+          },
+          "source_file_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "元ファイル名（パスは含めない）"
+          },
+          "source_sheet_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "元シート名"
+          },
+          "data_confidence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              null
+            ],
+            "description": "データ確度"
+          },
+          "error_detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "読取エラー等の詳細"
+          },
+          "total_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "総戸数"
+          },
+          "occupied_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "稼働戸数"
+          },
+          "vacant_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "空室戸数"
+          },
+          "application_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "申込戸数"
+          },
+          "scheduled_contract_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "契約予定戸数"
+          },
+          "scheduled_termination_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "解約予定戸数"
+          },
+          "occupancy_rate_source": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "元データ記載の稼働率（0〜1 の小数）"
+          },
+          "occupancy_rate_calculated": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "元データ側の計算稼働率（0〜1）"
+          },
+          "occupancy_calculation_numerator": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "稼働率の分子"
+          },
+          "occupancy_calculation_denominator": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "稼働率の分母"
+          },
+          "occupancy_after_application_source": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "元データ記載の申込反映後稼働率（0〜1）"
+          },
+          "occupancy_after_application_calculated": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "申込反映後稼働率（0〜1）。元データ定義上算出が許される場合のみ値を入れ、それ以外は null"
+          },
+          "leasing_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "募集中戸数"
+          },
+          "new_leasing_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "新規募集戸数"
+          },
+          "long_vacancy_units": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "長期空室戸数"
+          },
+          "average_vacancy_days": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "平均空室日数"
+          },
+          "maximum_vacancy_days": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "最大空室日数"
+          },
+          "current_rent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "現行賃料（円）"
+          },
+          "asking_rent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "募集賃料（円）"
+          },
+          "rent_revision_amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "賃料改定額（円。負の値可）"
+          },
+          "ad": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "AD（元データ単位）"
+          },
+          "fr": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "FR（元データ単位）"
+          },
+          "viewing_count": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "内見数"
+          },
+          "inquiry_count": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "反響数"
+          },
+          "application_count": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "申込件数"
+          },
+          "contract_count": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "契約件数"
+          },
+          "application_cancel_count": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "（任意・仕様外の拡張）申込取消件数。あれば「申込取消」アラートに使う"
+          }
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "severity": {
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_number": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "validation_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "success": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "partial": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "failed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "property_linked": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "duplicate_candidates": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "low_confidence_records": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "file_inventory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file_name"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "description": "ファイル名（パス・URL は含めない）"
+          },
+          "status": {
+            "enum": [
+              "success",
+              "partial",
+              "failed"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "x-csv-schemas": {
+    "property_master.csv": {
+      "encoding": "UTF-8（BOM 可）",
+      "primaryKey": "project_number",
+      "columns": [
+        {
+          "name": "project_number",
+          "aliases": [
+            "Project #",
+            "project_no"
+          ],
+          "required": true,
+          "description": "Project #（一意）"
+        },
+        {
+          "name": "project_name",
+          "aliases": [
+            "Project Name"
+          ]
+        },
+        {
+          "name": "property_name_ja",
+          "aliases": [
+            "日本語物件名"
+          ]
+        },
+        {
+          "name": "property_name_en"
+        },
+        {
+          "name": "spc",
+          "aliases": [
+            "SPC"
+          ]
+        },
+        {
+          "name": "am",
+          "aliases": [
+            "AM"
+          ]
+        },
+        {
+          "name": "pm",
+          "aliases": [
+            "PM"
+          ]
+        },
+        {
+          "name": "master_source"
+        }
+      ],
+      "note": "物件名・SPC・AM・PM の表示はこのファイルを正とする。未知の列は無視する。"
+    },
+    "validation_report.csv": {
+      "encoding": "UTF-8（BOM 可）",
+      "columns": [
+        {
+          "name": "ファイル名",
+          "required": true
+        },
+        {
+          "name": "対象物件",
+          "description": "Project #。空欄は未紐付け"
+        },
+        {
+          "name": "処理結果",
+          "enum": [
+            "正常",
+            "一部",
+            "読取失敗"
+          ]
+        },
+        {
+          "name": "抽出項目数",
+          "type": "integer"
+        },
+        {
+          "name": "読取不能項目"
+        },
+        {
+          "name": "重複の可能性",
+          "enum": [
+            "あり",
+            "なし",
+            "未判定"
+          ]
+        },
+        {
+          "name": "数値不一致",
+          "enum": [
+            "あり",
+            "なし",
+            "未判定"
+          ]
+        },
+        {
+          "name": "物件名不一致",
+          "enum": [
+            "あり",
+            "なし",
+            "未判定"
+          ]
+        },
+        {
+          "name": "データ確度",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        {
+          "name": "要確認理由"
+        }
+      ],
+      "note": "1 ファイルにつき 1 行。file_inventory の全ファイルに行が必要。"
+    }
+  }
+}

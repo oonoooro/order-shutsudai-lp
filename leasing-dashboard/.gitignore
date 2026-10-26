@@ -1,0 +1,5 @@
+# 実データはリポジトリに含めない（物件名・ファイル名等の社内情報を含むため）
+data/*
+!data/README.md
+node_modules/
+*.log
