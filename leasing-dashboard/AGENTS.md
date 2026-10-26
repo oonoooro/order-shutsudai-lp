@@ -24,6 +24,8 @@
 | `core.js` | 読込・検証・集計・アラート判定・書式（DOM に依存しない） | 計算方法、アラート条件、検証ルール |
 | `xlsx.js` | Excel の読込（ZIP と XML を自前で処理） | 通常は変更不要 |
 | `ingest.js` | 週報 Excel の様式判定（A〜D）と抽出・標準化 | 新しい様式の追加、見出しの別名の追加 |
+| `report-xlsx.js` | SharePoint で共有する Excel レポート（シートごとの表）の作成。`buildReport` | シート・列の追加、列の幅 |
+| `xlsx-writer.js` | Excel の書き出し（ZIP と XML を自前で作成。書式・絞り込み・データバー） | 通常は変更不要 |
 | `scripts/` | ローカルサーバー・データ検証・週報解析のコマンド | — |
 | `tests/` | 自動テスト（データはすべて架空）。`tests/browser/selftest.js` は `selftest.html` で動く自己診断 | 変更に合わせてテストを追加 |
 | `selftest.html` | Node.js なしで実行できる自己診断ページ | 確認項目の追加は `tests/browser/selftest.js` |
@@ -46,6 +48,7 @@
 - **物件一覧の列:** `app.js` の `LIST_COLUMNS`
 - **KPI カード:** `app.js` の `renderSummary`
 - **アラートの区分・条件:** `core.js` の `ALERT_CATEGORIES` と `computeAlerts`
+- **SharePoint 用 Excel のシート・列:** `report-xlsx.js` の `buildReport`。セルは部品（`num`・`rate`・`money`・`text`・`none`）で作り、値がないときは「データなし」にする（0 にしない）。ファイル名は `config.js` の `excelReportFileName`（日付を入れない。毎週同じ名前で置き換えて URL を保つ）
 - **週報の見出しの表記ゆれ:** `ingest.js` の各様式（`parseA` / `parseB` / `parseC` / `parseD`）の `findHeader` に別名を追加
 - **新しい週報の様式:** `ingest.js` の `detectFormat` に判定を追加し、`parseX` を作る。架空のフィクスチャを `tests/fixtures/make_weekly_xlsx.py` に追加してテストする（Python と Node.js が必要。ない場合は様式の見本を添えて開発者に依頼する）。
 

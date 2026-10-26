@@ -342,6 +342,19 @@
     }).catch(function (e) { showTransientError('週報 Excel の解析に失敗しました: ' + (e && e.message ? e.message : e)); });
   }
 
+  // SharePoint で共有する Excel レポート（表示中の基準週・全物件。絞り込みは Excel 側で行う）
+  function saveExcel() {
+    var R = window.LeasingReport;
+    if (!R || !window.LeasingXlsxWriter) { showTransientError('Excel 書き出し機能（xlsx-writer.js・report-xlsx.js）を読み込めませんでした。'); return; }
+    if (!state.model) { showTransientError('表示するデータがないため、Excel を書き出せません。'); return; }
+    try {
+      var r = R.buildReport(state.model, state.period, CFG);
+      saveText(r.fileName, r.bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      state.notes = ['「' + r.fileName + '」を保存しました（基準週 ' + C.formatPeriod(state.period) + '）。SharePoint の同じ場所に同じ名前でアップロードすると、URL を変えずに更新できます。'];
+      render();
+    } catch (e) { showTransientError('Excel の書き出しに失敗しました: ' + (e && e.message ? e.message : e)); }
+  }
+
   function saveText(name, textIn, type) {
     var blob = new Blob([textIn], { type: type });
     var url = URL.createObjectURL(blob);
@@ -1453,6 +1466,7 @@
       render();
     });
     $('btn-reload').addEventListener('click', function () { state.notes = []; loadFromServer(); });
+    $('btn-excel').addEventListener('click', saveExcel);
     $('file-input').addEventListener('change', function (e) { loadFromFiles(e.target.files); e.target.value = ''; });
     // 画面のどこにドロップしても読み込む。ドラッグ中は受付表示を出す
     var dragDepth = 0;

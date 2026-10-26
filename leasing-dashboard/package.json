@@ -15,6 +15,8 @@
     "test": "node --test",
     "test:browser": "node tests/browser_smoke.js",
     "ingest": "node scripts/ingest-weekly.js",
+    "excel": "node scripts/export-excel.js",
+    "excel:sample": "node scripts/export-excel.js --data sample_data --out output/sample_leasing_dashboard.xlsx",
     "fixtures": "python3 tests/fixtures/make_weekly_xlsx.py"
   }
 }

@@ -15,7 +15,7 @@ test('外部 CDN・外部スクリプト・解析 SDK を使っていない', ()
   const html = read('index.html');
   const srcs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
   srcs.forEach((s) => assert.doesNotMatch(s, /^(https?:)?\/\//, 'external reference: ' + s));
-  ['app.js', 'core.js', 'config.js', 'styles.css', 'index.html', 'xlsx.js', 'ingest.js'].forEach((f) => {
+  ['app.js', 'core.js', 'config.js', 'styles.css', 'index.html', 'xlsx.js', 'ingest.js', 'xlsx-writer.js', 'report-xlsx.js'].forEach((f) => {
     const t = read(f);
     assert.doesNotMatch(t, /googletagmanager|google-analytics|gtag\(|analytics\.js|cdn\.|unpkg|jsdelivr|sendBeacon|XMLHttpRequest|WebSocket|@import/i, f);
   });
@@ -35,13 +35,14 @@ test('CSP で外部への接続を禁止している', () => {
 });
 
 test('画面ロジックは innerHTML 等で文字列を HTML として挿入しない（XSS 対策）', () => {
-  ['app.js', 'core.js', 'xlsx.js', 'ingest.js'].forEach((f) => assert.doesNotMatch(read(f), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, f));
+  ['app.js', 'core.js', 'xlsx.js', 'ingest.js', 'xlsx-writer.js', 'report-xlsx.js'].forEach((f) => assert.doesNotMatch(read(f), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, f));
 });
 
 test('設定のデータファイル名に特定週の日付を含めない', () => {
   const cfg = require('../config');
   assert.deepEqual(Object.values(cfg.dataFiles), ['data/dashboard_data.json', 'data/property_master.csv', 'data/validation_report.csv']);
-  ['app.js', 'core.js', 'config.js', 'index.html', 'xlsx.js', 'ingest.js', 'scripts/serve.js', 'scripts/validate-data.js', 'scripts/ingest-weekly.js'].forEach((f) => {
+  ['app.js', 'core.js', 'config.js', 'index.html', 'xlsx.js', 'ingest.js', 'scripts/serve.js', 'scripts/validate-data.js', 'scripts/ingest-weekly.js',
+    'xlsx-writer.js', 'report-xlsx.js', 'scripts/export-excel.js'].forEach((f) => {
     assert.doesNotMatch(read(f), /20\d{2}[-/]?\d{2}[-/]?\d{2}/, f + ' に日付がハードコードされている');
   });
 });
@@ -49,6 +50,7 @@ test('設定のデータファイル名に特定週の日付を含めない', ()
 test('実データフォルダは .gitignore で除外されている', () => {
   const gi = read('.gitignore');
   assert.match(gi, /^data\/\*$/m);
+  assert.match(gi, /^output\/$/m, '書き出した Excel（実データを含む）も除外する');
 });
 
 test('sample_data_schema.json は仕様の全フィールドを定義している', () => {
@@ -173,6 +175,6 @@ test('自己診断ページ: 埋め込んだ架空の週報 Excel がフィク�
   const { build, OUT } = require('../scripts/build-selftest-fixtures');
   assert.equal(fs.readFileSync(OUT, 'utf8'), build(), 'node scripts/build-selftest-fixtures.js を実行して更新する');
   const html = read('selftest.html');
-  ['config.js', 'core.js', 'xlsx.js', 'ingest.js', 'tests/browser/selftest_fixtures.js', 'tests/browser/selftest.js'].forEach((s) => assert.ok(html.includes('src="' + s + '"'), s));
+  ['config.js', 'core.js', 'xlsx.js', 'ingest.js', 'xlsx-writer.js', 'report-xlsx.js', 'tests/browser/selftest_fixtures.js', 'tests/browser/selftest.js'].forEach((s) => assert.ok(html.includes('src="' + s + '"'), s));
   assert.doesNotMatch(read('tests/browser/selftest.js'), /innerHTML|eval\(/);
 });

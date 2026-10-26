@@ -151,6 +151,14 @@ async function main() {
   check(await dpage.isVisible('#f-master select'), 'マスターの追加列（TMK）の絞り込みを表示する');
   await dpage.selectOption('#f-master select', '架空TMK2');
   check((await dpage.locator('#view-list tbody tr').count()) === 1, 'マスターの追加列（TMK）で物件を絞り込める');
+  // SharePoint 用 Excel: 画面の絞り込みに関係なく全物件を書き出し、TMK 列を含む
+  const [dl] = await Promise.all([dpage.waitForEvent('download'), dpage.click('#btn-excel')]);
+  const cfgName = require('../config').excelReportFileName;
+  check(dl.suggestedFilename() === cfgName, 'Excel を固定のファイル名（' + cfgName + '）で保存する');
+  const wb = await require('../xlsx').readWorkbook(new Uint8Array(fs.readFileSync(await dl.path())), { inflateRaw: (b) => require('zlib').inflateRawSync(b) });
+  const ls = wb.sheet('物件一覧');
+  const heads = []; for (let c = 1; c <= ls.maxCol; c++) heads.push(ls.value(1, c));
+  check(heads.includes('TMK') && ls.maxRow - 1 === 3, 'Excel の物件一覧に全物件（3件）と TMK 列が入る');
   // data/ に dashboard_data.json がない状態で開き直すと、ブラウザに保存した取込結果を表示する
   await dpage.waitForSelector('body[data-saved]', { timeout: 15000 });
   fs.renameSync(path.join(tmp, 'dashboard_data.json'), path.join(tmp, 'dashboard_data.json.bak'));

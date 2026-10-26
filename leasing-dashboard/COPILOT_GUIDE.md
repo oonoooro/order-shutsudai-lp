@@ -10,6 +10,8 @@ Copilot はファイルを直接書き換えたり、テストを実行したり
 
 Node.js は不要です。
 
+SharePoint で共有する方法（Excel レポート・ページ・Copilot への質問）は `SHAREPOINT_GUIDE.md` を参照してください。
+
 ## 準備（最初の 1 回）
 
 1. このフォルダ（`leasing-dashboard`）を OneDrive または SharePoint に置き、PC に同期します。

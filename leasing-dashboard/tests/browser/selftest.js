@@ -8,6 +8,7 @@
   'use strict';
 
   var C = window.LeasingCore, CFG = window.DASHBOARD_CONFIG, I = window.LeasingIngest, F = window.SELFTEST_FIXTURES;
+  var X = window.LeasingXlsx, REP = window.LeasingReport;
   var checks = [];
   function check(group, name, fn) { checks.push({ group: group, name: name, fn: fn }); }
   function eq(a, b, msg) {
@@ -151,6 +152,21 @@
     eq(r.map(function (x) { return x.project_number; }), ['2', null, '3']);
   });
 
+  // ---------- SharePoint 用 Excel ----------
+  check('Excel出力', 'Excel レポートを書き出し、読み直すと値が一致する（TMK 列・データなし）', function () {
+    var master = 'project_number,property_name_ja,TMK\nT-001,テスト物件0,架空1\nT-002,テスト物件1,架空2\n';
+    var m = build(data([rec()]), master);
+    var r = REP.buildReport(m, m.period, CFG, { generatedAt: new Date() });
+    return X.readWorkbook(r.bytes).then(function (wb) {
+      var sh = wb.sheet('物件一覧'), head = [], find = function (key) { for (var i = 2; i <= sh.maxRow; i++) if (sh.value(i, 1) === key) return i; return -1; };
+      for (var c = 1; c <= sh.maxCol; c++) head.push(sh.value(1, c));
+      eq(head.slice(0, 3), ['Project #', '日本語物件名', 'TMK']);
+      eq(sh.value(find('T-001'), head.indexOf('総戸数') + 1), 10);
+      eq(sh.value(find('T-001'), head.indexOf('TMK') + 1), '架空1');
+      eq(sh.value(find('T-002'), head.indexOf('総戸数') + 1), CFG.display.nullLabel, 'データのない物件は 0 ではなく「データなし」');
+    });
+  });
+
   // ---------- 環境 ----------
   check('環境', 'ブラウザ内の保存（IndexedDB）が使える', function () {
     return new Promise(function (resolve, reject) {
@@ -188,8 +204,8 @@
     });
   }
 
-  if (!C || !CFG || !I || !F) {
-    document.getElementById('summary').textContent = 'NG: 必要なファイル（config.js・core.js・xlsx.js・ingest.js・tests/browser/selftest_fixtures.js）を読み込めませんでした。';
+  if (!C || !CFG || !I || !F || !X || !REP) {
+    document.getElementById('summary').textContent = 'NG: 必要なファイル（config.js・core.js・xlsx.js・ingest.js・xlsx-writer.js・report-xlsx.js・tests/browser/selftest_fixtures.js）を読み込めませんでした。';
     document.body.setAttribute('data-result', 'ng');
     return;
   }

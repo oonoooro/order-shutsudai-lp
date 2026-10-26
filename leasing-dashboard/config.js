@@ -90,6 +90,8 @@
       // 物件名の照合で無視する共通の接頭語（例: シリーズ名）。ファイル名に物件名の一部しかない場合に使う
       stripNamePrefixes: []
     },
+    // SharePoint で共有する Excel レポートのファイル名（日付を含めない。毎週同じ名前で上書きすると URL が変わらない）
+    excelReportFileName: 'leasing_dashboard.xlsx',
     // ファイル名と Project # の対応表（任意）
     sourceMappingFile: 'data/source_mapping.csv',
 

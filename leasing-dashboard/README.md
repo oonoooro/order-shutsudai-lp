@@ -51,6 +51,16 @@ Node.js がない場合は `index.html` をブラウザで直接開き、右上�
 
 `data/` のファイルを直接差し替えて「データ再読込」を押す方法も使えます。
 
+### 4. SharePoint で共有する（Excel レポート）
+
+画面右上の **「SharePoint用Excelを保存」** で、表示中の基準週の内容を `leasing_dashboard.xlsx` に書き出します。SharePoint の同じフォルダに同じ名前で置き換えると、URL を変えずに毎週更新できます。閲覧者は Excel for the web で開き、見出しの ▼ で担当者・TMK などを絞り込めます。手順・SharePoint ページの作り方・Copilot への質問例は `SHAREPOINT_GUIDE.md` を参照してください。
+
+- シート: サマリー、物件一覧、空室率、長期空室、申込・解約、条件変更、工事、アラート、対応事項、データ検証、データのない物件
+- 表示ルールはダッシュボードと同じ（「データなし」は 0 にしない、比率は小数第 1 位、金額は万円、暫定の明示）。個人情報らしい項目は出力しない
+- 画面の絞り込みに関係なく全物件を書き出す（絞り込みは Excel 側で行う）
+- コマンド: `npm run excel`（`data/` から `output/leasing_dashboard.xlsx` を作成。`--period YYYYMMDD` で基準週を指定）。`output/` はリポジトリ対象外
+- 外部ライブラリは使わず、`xlsx-writer.js` で Excel を作成（Excel・LibreOffice・openpyxl で開けることを確認済み）
+
 - 画面上の対象週には `report_metadata.source_period` を表示します。
 - 物件明細に複数週の `report_date` があれば「基準週」で切り替えられ、前週比・週次推移に使われます。
 - `dashboard_data.json` が不正な JSON の場合は更新せず、前回正常に読み込んだデータを表示したまま警告バナーを出します（前回データはこのブラウザ内の IndexedDB に保存。外部には送りません）。
@@ -193,7 +203,7 @@ npm test               # 単体・結合テスト（node:test、外部依存な�
 npm run test:browser   # ブラウザ確認（Playwright がある環境のみ。なければスキップ）
 ```
 
-Node.js がない場合は `selftest.html` をブラウザで開きます（表示ルール・検証・集計・住戸・マスター・週報 Excel の解析・個人情報の除外など 23 項目）。自己診断に埋め込む架空の Excel は、`node scripts/build-selftest-fixtures.js` で更新します。
+Node.js がない場合は `selftest.html` をブラウザで開きます（表示ルール・検証・集計・住戸・マスター・週報 Excel の解析・SharePoint 用 Excel の書き出し・個人情報の除外など 24 項目）。自己診断に埋め込む架空の Excel は、`node scripts/build-selftest-fixtures.js` で更新します。
 
 自動テストの対象:
 
@@ -208,6 +218,7 @@ Node.js がない場合は `selftest.html` をブラウザで開きます（表�
 - 未知の列が追加された場合の後方互換性（JSON・CSV、列の並び替え、最小構成）
 - 週報 Excel の解析: 様式 A〜D の判定と抽出、計算結果のない数式の扱い、期間別シートの差分による重複排除、同一ファイルの二重読込、同じ物件・週の別様式を合算しないこと、現況が空欄の住戸を推測しないこと、個人情報の列を出力しないこと、物件の紐付け、前回データの引継ぎ、元ファイルを変更しないこと（フィクスチャは `tests/fixtures/make_weekly_xlsx.py` で生成した架空データ）
 - 物件マスター: 追加列（TMK 等）の読込と絞り込み、個人名の列の既定除外と許可、データのない物件の一覧、ファイル名の照合（区切り・最長一致・共通接頭語の自動検出・対応表の優先）、住戸明細の保存週数
+- SharePoint 用 Excel レポート: Excel として読めること（ZIP・CRC）、マスターの列（TMK・担当者）と絞り込み・見出し固定、ダッシュボードと同じ集計値、「データなし」「数値不正」「暫定」の表示、0 を 0 のまま出すこと、個人情報を出力しないこと、住戸単位のシートの件数、書き出しコマンドが入力を変更しないこと、固定のファイル名で保存されること（ブラウザ確認）
 - Copilot 向けガイド（AGENTS.md・COPILOT_GUIDE.md・エージェントの指示文）に書いた関数名・設定名がコードに実在すること、指示文が 8,000 文字以内であること、自己診断ページの埋め込みデータがフィクスチャと一致すること
 - 住戸明細: 空室日数の計算、今週の新規申込・申込取消・新規解約（日付と状態変化）、賃料条件の変更、工事の残り日数・完了予定超過、住戸の重複・未登録・形式不正、物件の空室戸数との突合、`units` がない場合の後方互換、空室率ランキング
 - 件数突合・検証行の欠落、対象週（source_period）、プライバシー処理、CSV の数式インジェクション対策、フィルター、アラート判定
@@ -222,7 +233,9 @@ Node.js がない場合は `selftest.html` をブラウザで開きます（表�
 leasing-dashboard/
 ├── AGENTS.md               Copilot など AI アシスタント向けの編集ルール
 ├── COPILOT_GUIDE.md        Microsoft 365 Copilot で編集する手順と指示文の例
-├── copilot/                エージェントの指示文（agent_instructions.txt）と知識用のルール（knowledge_AGENTS.txt）
+├── SHAREPOINT_GUIDE.md     SharePoint で共有する手順（Excel レポート・ページ・Copilot への質問）
+├── copilot/                エージェントの指示文（agent_instructions.txt）、知識用のルール（knowledge_AGENTS.txt）、
+│                           SharePoint のエージェント用の指示文（sharepoint_agent_instructions.txt）
 ├── selftest.html           Node.js なしで実行できる自己診断ページ
 ├── index.html              画面
 ├── styles.css              スタイル（ライト/ダーク）
@@ -230,6 +243,8 @@ leasing-dashboard/
 ├── core.js                 読込・検証・集計・書式（ブラウザ/Node 共用）
 ├── xlsx.js                 Excel（.xlsx/.xlsm）の読込（外部ライブラリなし）
 ├── ingest.js               週報 Excel の様式判定・抽出・標準化
+├── report-xlsx.js          SharePoint 用 Excel レポートの作成（シートごとの表）
+├── xlsx-writer.js          Excel（.xlsx）の書き出し（外部ライブラリなし）
 ├── config.js               設定（データパス、表示単位、閾値、列名の別名、プライバシー）
 ├── sample_data_schema.json 入力データの JSON Schema と CSV 列定義
 ├── start.sh / start.bat    起動スクリプト
@@ -237,6 +252,7 @@ leasing-dashboard/
 ├── scripts/serve.js        ローカル専用の静的サーバー
 ├── scripts/validate-data.js データ検証
 ├── scripts/ingest-weekly.js 週報 Excel の解析（dashboard_data.json・validation_report.csv を出力）
+├── scripts/export-excel.js SharePoint 用 Excel レポートの書き出し
 ├── data/                   実データ置き場（リポジトリ対象外）
 ├── sample_data/            架空サンプル（実在しない物件・数値）
 └── tests/                  自動テストとフィクスチャ（すべて架空データ）
@@ -253,6 +269,7 @@ leasing-dashboard/
 | `alerts.occupancyDropThreshold` | `0.01` | 稼働率低下の閾値（1.0pt） |
 | `alerts.longVacancyDays` | `90` | 長期空室とみなす最大空室日数 |
 | `occupancyBands` | 80/90/95% | 稼働率帯フィルター |
+| `excelReportFileName` | `'leasing_dashboard.xlsx'` | SharePoint 用 Excel のファイル名（日付を入れない） |
 | `masterColumns` / `validationReportColumns` | — | 列名の別名（列名が変わった場合はここに追加） |
 
 ## 元ファイルを読み取れなかった週の表示
