@@ -126,3 +126,11 @@ test('ローカルサーバー: 本体とデータのみ配信し、それ以外
     await new Promise((r) => server.close(r));
   }
 });
+
+test('sample_data_schema.json は住戸明細（units）の項目を定義している', () => {
+  const schema = JSON.parse(read('sample_data_schema.json'));
+  const props = schema.properties.units.items.properties;
+  ['project_number', 'unit_number', 'leasing_status', 'vacancy_start_date', 'application_date', 'application_cancel_date',
+    'notice_date', 'move_out_date', 'asking_rent', 'ad', 'fr', 'work_type', 'work_end_date', 'work_completed_date'].forEach((f) => assert.ok(props[f], f));
+  assert.deepEqual(schema.properties.units.items.required, ['project_number', 'unit_number']);
+});

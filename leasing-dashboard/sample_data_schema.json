@@ -639,6 +639,247 @@
           }
         }
       }
+    },
+    "units": {
+      "type": "array",
+      "description": "（任意・dashboard_spec.md の拡張）住戸明細。Project # × 住戸番号 × report_date ごとに 1 レコード。空室・申込・契約済・解約予定・工事中の住戸を載せる（入居中で動きのない住戸は省略可）。ない場合は住戸単位の画面が「住戸明細なし」になる。",
+      "items": {
+        "type": "object",
+        "required": [
+          "project_number",
+          "unit_number"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "report_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "レポート日。省略時は source_period"
+          },
+          "project_number": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "Project #（物件マスターと結合）"
+          },
+          "unit_number": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "住戸番号（部屋番号）"
+          },
+          "layout": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "間取り（例: 1K）"
+          },
+          "floor_area_sqm": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "専有面積（㎡）"
+          },
+          "leasing_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "募集状況",
+            "enum": [
+              "vacant",
+              "application",
+              "contracted",
+              "occupied",
+              "notice",
+              "空室",
+              "申込あり",
+              "契約済",
+              "入居中",
+              "解約予定",
+              null
+            ]
+          },
+          "vacancy_start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "空室になった日（退去日）。空室日数はこの日から基準日までで計算（YYYY-MM-DD）"
+          },
+          "vacancy_days": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "元データ記載の空室日数（空室開始日がない場合に使用）"
+          },
+          "application_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "申込日（YYYY-MM-DD）"
+          },
+          "application_cancel_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "申込取消日（YYYY-MM-DD）"
+          },
+          "notice_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "解約通知を受けた日（YYYY-MM-DD）"
+          },
+          "move_out_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "退去（予定）日（YYYY-MM-DD）"
+          },
+          "current_rent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "現行賃料（円）"
+          },
+          "asking_rent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "募集賃料（円）"
+          },
+          "common_fee": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "共益費・管理費（円）"
+          },
+          "ad": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "AD（元データ単位）"
+          },
+          "fr": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "FR（元データ単位）"
+          },
+          "deposit_months": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "敷金（ヶ月）"
+          },
+          "key_money_months": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "礼金（ヶ月）"
+          },
+          "work_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "工事種別",
+            "enum": [
+              "renovation",
+              "restoration",
+              "リノベ",
+              "リノベーション",
+              "原状回復",
+              "原復",
+              null
+            ]
+          },
+          "work_start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "工事開始日（YYYY-MM-DD）"
+          },
+          "work_end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "工事完了予定日（YYYY-MM-DD）"
+          },
+          "work_completed_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "工事完了日（完了済みの場合）（YYYY-MM-DD）"
+          },
+          "unit_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "住戸の補足（個人名・連絡先を含めない）"
+          },
+          "data_confidence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "データ確度",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              null
+            ]
+          },
+          "source_file_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "元ファイル名（パスは含めない）"
+          }
+        }
+      }
     }
   },
   "x-csv-schemas": {

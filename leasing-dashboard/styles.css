@@ -274,3 +274,18 @@ dl.kv dd { margin: 0; }
 @media (forced-colors: active) {
   .badge { border: 1px solid CanvasText; }
 }
+
+/* 住戸の動き */
+.digest { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.digest-item {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text);
+}
+.digest-item:hover { border-color: var(--accent); }
+.digest-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.btn-link { white-space: nowrap; }
+.st-vacant { background: var(--surface-2); color: var(--text); border-color: var(--axis); }
+.st-app { background: var(--info-bg); color: var(--text); border-color: var(--accent); }
+.st-contract { background: var(--good-bg); color: var(--delta-up); border-color: var(--good); }
+.st-occupied { background: var(--surface); color: var(--text-2); border-color: var(--border); }
+.st-notice { background: var(--warning-bg); color: var(--text); border-color: var(--warning); }

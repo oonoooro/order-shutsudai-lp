@@ -28,6 +28,7 @@
 
 <nav class="tabs" role="tablist" aria-label="画面切替">
   <button type="button" role="tab" class="tab" data-tab="summary" aria-selected="true">ポートフォリオサマリー</button>
+  <button type="button" role="tab" class="tab" data-tab="units" aria-selected="false">住戸の動き</button>
   <button type="button" role="tab" class="tab" data-tab="list" aria-selected="false">物件一覧</button>
   <button type="button" role="tab" class="tab" data-tab="alerts" aria-selected="false">アラート</button>
   <button type="button" role="tab" class="tab" data-tab="detail" aria-selected="false">物件詳細</button>
@@ -51,6 +52,7 @@
 
 <main id="main">
   <section id="view-summary" class="view" role="tabpanel"></section>
+  <section id="view-units" class="view" role="tabpanel" hidden></section>
   <section id="view-list" class="view" role="tabpanel" hidden></section>
   <section id="view-alerts" class="view" role="tabpanel" hidden></section>
   <section id="view-detail" class="view" role="tabpanel" hidden></section>

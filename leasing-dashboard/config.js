@@ -60,6 +60,25 @@
       }
     },
 
+    // 住戸明細（units）の解釈
+    units: {
+      // 前週データがない場合に「今週」とみなす日数（基準日を含めて遡る）
+      weekWindowDays: 7,
+      // 物件の空室戸数と突合する未入居ステータス
+      vacantStatuses: ['vacant', 'application', 'contracted'],
+      statusAliases: {
+        vacant: ['vacant', '空室', '募集中', '空室（募集中）'],
+        application: ['application', '申込', '申込あり', '申込中'],
+        contracted: ['contracted', '契約済', '入居待ち', '契約済（入居待ち）'],
+        occupied: ['occupied', '入居中', '稼働'],
+        notice: ['notice', '解約予定', '退去予定', '解約通知']
+      },
+      workTypeAliases: {
+        renovation: ['renovation', 'リノベ', 'リノベーション'],
+        restoration: ['restoration', '原状回復', '原復', '原状回復工事']
+      }
+    },
+
     // 稼働率帯フィルター（min 以上 max 未満。max:null は上限なし）
     occupancyBands: [
       { id: 'lt80', label: '80%未満', min: 0, max: 0.8 },

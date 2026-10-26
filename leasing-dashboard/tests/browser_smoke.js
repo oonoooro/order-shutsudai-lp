@@ -54,7 +54,7 @@ async function main() {
   const header = await page.textContent('#header-meta');
   check(header.includes(sourcePeriod), '対象週 source_period（' + sourcePeriod + '）がヘッダーに表示される');
 
-  for (const tab of ['summary', 'list', 'alerts', 'detail', 'validation']) {
+  for (const tab of ['summary', 'units', 'list', 'alerts', 'detail', 'validation']) {
     await page.click('.tab[data-tab="' + tab + '"]');
     const visible = await page.isVisible('#view-' + tab);
     const text = await page.textContent('#view-' + tab);

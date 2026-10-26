@@ -278,7 +278,7 @@
     renderBanners(c);
     renderTabs(c);
     $('filters').hidden = state.tab === 'validation';
-    var views = { summary: renderSummary, list: renderList, alerts: renderAlerts, detail: renderDetail, validation: renderValidation };
+    var views = { summary: renderSummary, units: renderUnits, list: renderList, alerts: renderAlerts, detail: renderDetail, validation: renderValidation };
     Object.keys(views).forEach(function (k) {
       var el = $('view-' + k);
       el.hidden = k !== state.tab;
@@ -444,6 +444,8 @@
         ['反響', s.inquiry_count], ['内見', s.viewing_count], ['申込', s.application_count], ['契約', s.contract_count]
       ]), s.provisional && s.inquiry_count.value !== null ? provisionalBadge(s.provisionalReasons) : null)
     ]));
+    // 今週の住戸の動き（要約）
+    el.appendChild(unitDigest(c));
     // 前週からの主要変化
     var changes = c.recs.filter(function (r) { return r.text.major_change_from_previous_week; });
     el.appendChild(card('前週からの主要変化', changes.length ? h('ul', { class: 'change-list' }, changes.map(function (r) {
@@ -619,7 +621,7 @@
   function renderList(el, c) {
     var col = LIST_COLUMNS.filter(function (x) { return x.key === state.sort.key; })[0] || LIST_COLUMNS[0];
     var rows = c.recs.slice().sort(function (a, b) { return nullLast(colValue(col, a), colValue(col, b), state.sort.dir); });
-    var exportBtn = h('button', { type: 'button', class: 'btn btn-ghost btn-small', text: 'CSV出力（個人情報を含まない列のみ）', onclick: function () { exportCSV(rows, c.period); } });
+    var exportBtn = h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'CSV出力（個人情報を含まない列のみ）', onclick: function () { exportCSV(rows, c.period); } });
     if (!rows.length) {
       el.appendChild(card('物件一覧', empty(c.all.length ? '条件に一致する物件はありません' : '物件レコードがありません（' + CFG.display.nullLabel + '）')));
       return;
@@ -680,6 +682,206 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
+
+  // ---------- 住戸の動き ----------
+
+  function unitActivity(c) {
+    if (c.unitActivity) return c.unitActivity;
+    var ua = C.computeUnitActivity(c.m, c.period, CFG);
+    // 物件フィルターを住戸にも適用する
+    if (c.filtered) {
+      var keys = {};
+      c.recs.forEach(function (r) { keys[r.key] = true; });
+      var keep = function (x) { return keys[x.project_number]; };
+      ['longVacancy', 'vacancyList', 'newApplications', 'cancellations', 'newNotices', 'conditionChanges', 'works'].forEach(function (k) { ua[k] = ua[k].filter(keep); });
+    }
+    c.unitActivity = ua;
+    return ua;
+  }
+
+  function propertyName(c, key) {
+    var mEntry = c.m.master.byKey[key];
+    var n = mEntry ? (mEntry.property_name_ja || mEntry.project_name) : null;
+    if (!n) {
+      var r = c.m.records.filter(function (x) { return x.key === key; })[0];
+      n = r ? (C.displayName(r, 'property_name_ja') || C.displayName(r, 'project_name')) : null;
+    }
+    return n || CFG.display.nullLabel;
+  }
+
+  function propCell(c, key) {
+    return h('td', { class: 'nowrap' }, [
+      h('button', { type: 'button', class: 'linklike', text: key, onclick: function () { openDetail(key); } }),
+      h('div', { class: 'note', text: propertyName(c, key) })
+    ]);
+  }
+
+  function statusBadge(st) {
+    if (!st) return h('span', { class: 'muted', text: CFG.display.nullLabel });
+    var cls = { vacant: 'st-vacant', application: 'st-app', contracted: 'st-contract', occupied: 'st-occupied', notice: 'st-notice' }[st];
+    return badge(C.UNIT_STATUS_LABELS[st], 'badge-plain ' + cls);
+  }
+
+  function workLabel(u) {
+    if (!u.work_type) return '—';
+    return C.WORK_TYPE_LABELS[u.work_type] + (u.dateText.work_end_date ? '（完了予定 ' + u.dateText.work_end_date + '）' : '（完了予定日データなし）');
+  }
+
+  function unitTable(headers, rows, numCols) {
+    numCols = numCols || [];
+    return h('div', { class: 'table-wrap' }, h('table', null, [
+      h('thead', null, h('tr', null, headers.map(function (t, i) { return h('th', { class: numCols.indexOf(i) !== -1 ? 'num' : null, text: t }); }))),
+      h('tbody', null, rows)
+    ]));
+  }
+
+  function unitDigest(c) {
+    var ua = unitActivity(c);
+    if (!ua.available) {
+      return card('今週の住戸の動き', empty('住戸明細（units）がないため表示できません。dashboard_data.json に units を追加すると表示されます。'));
+    }
+    var overdue = ua.works.filter(function (w) { return w.overdue; }).length;
+    var chips = [
+      ['長期空室の住戸', ua.longVacancy.length, '戸'],
+      ['新規申込', ua.newApplications.length, '件'],
+      ['申込取消', ua.cancellations.length, '件'],
+      ['新規解約', ua.newNotices.length, '件'],
+      ['賃料条件の変更', ua.conditionChanges.length, '戸'],
+      ['リノベ・原状回復中', ua.works.filter(function (w) { return !w.completed; }).length, '戸']
+    ];
+    return card('今週の住戸の動き（' + (ua.windowText || C.formatPeriod(c.period)) + '）', h('div', null, [
+      h('div', { class: 'digest' }, chips.map(function (x) {
+        return h('button', { type: 'button', class: 'digest-item', onclick: function () { switchTab('units'); } }, [
+          h('span', { class: 'kpi-label', text: x[0] }),
+          h('span', { class: 'digest-value', text: ua.unitCount ? x[1] + x[2] : CFG.display.nullLabel })
+        ]);
+      })),
+      overdue ? h('p', null, [badge('完了予定超過 ' + overdue + '戸', 'sev-error')]) : null,
+      !ua.unitCount ? h('p', { class: 'note', text: '基準週 ' + C.formatPeriod(c.period) + ' の住戸明細はありません。' }) : null
+    ]), h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-link', text: '住戸の動きを見る', onclick: function () { switchTab('units'); } }));
+  }
+
+  function renderUnits(el, c) {
+    var ua = unitActivity(c);
+    var unitNo = function (x) { return h('td', { class: 'nowrap', text: x.unit_number }); };
+    var lay = function (u) { return h('td', { class: 'nowrap', text: u.text.layout || CFG.display.nullLabel }); };
+    el.appendChild(h('p', { class: 'note', text: '基準週 ' + C.formatPeriod(c.period) + (ua.windowText ? '。「今週」は ' + ua.windowText + '（前回の基準週の翌日から基準日まで）' : '') + '。物件名を押すと物件詳細を開きます。' }));
+    if (!ua.available) {
+      el.appendChild(card('住戸明細', empty('dashboard_data.json に住戸明細（units）がありません。追加すると、住戸ごとの空室期間・申込・解約・条件変更・工事予定が表示されます。')));
+    }
+
+    // 1. 空室期間の長い住戸
+    if (ua.available) {
+      var limit = state.showAllVacancy ? ua.vacancyList.length : 15;
+      var rows = ua.vacancyList.slice(0, limit).map(function (x) {
+        var u = x.unit, isLong = x.days >= CFG.alerts.longVacancyDays;
+        return h('tr', null, [
+          propCell(c, x.project_number), unitNo(x), lay(u),
+          h('td', null, statusBadge(u.status)),
+          h('td', { class: 'num' }, [isLong ? badge('長期', 'sev-error') : null, ' ', h('strong', { text: x.days + '日' })]),
+          h('td', { class: 'nowrap', text: u.dateText.vacancy_start_date || (x.basis === 'source' ? '元データの日数' : CFG.display.nullLabel) }),
+          numCell(C.fmtMoney(u.values.asking_rent, CFG, false, u.invalid.asking_rent), u.values.asking_rent === null),
+          h('td', { text: workLabel(u) })
+        ]);
+      });
+      var more = ua.vacancyList.length > limit ? h('button', { type: 'button', class: 'linklike', text: '残り ' + (ua.vacancyList.length - limit) + '戸を表示', onclick: function () { state.showAllVacancy = true; render(); } }) : null;
+      el.appendChild(card('空室期間の長い住戸（長期 ' + ua.longVacancy.length + '戸 / 基準 ' + CFG.alerts.longVacancyDays + '日以上）',
+        ua.vacancyList.length ? h('div', null, [unitTable(['物件', '住戸', '間取り', '状態', '空室日数', '空室開始日', '募集賃料', '工事'], rows, [4, 6]), more])
+          : empty(ua.unitCount ? '空室日数が分かる住戸はありません' : '基準週の住戸明細がありません')));
+    }
+
+    // 2. 空室率の高い物件
+    var ranking = C.vacancyRanking(c.m, c.period, c.recs);
+    var rankRows = ranking.map(function (x) {
+      var r = x.record, up = x.delta !== null && x.delta > 0;
+      return h('tr', null, [
+        propCell(c, x.project_number),
+        numCell(C.fmtRate(x.rate, CFG), x.rate === null),
+        numCell(C.fmtRate(x.prevRate, CFG), x.prevRate === null),
+        h('td', { class: 'num' }, x.delta === null ? h('span', { class: 'muted', text: c.prevPeriod ? CFG.display.nullLabel : '前週データなし' }) : [up ? badge('上昇', 'sev-error') : null, ' ', deltaSpan(C.fmtPt(x.delta, CFG), x.delta, false)]),
+        numCell(C.fmtCount(r.values.vacant_units, CFG, r.invalid.vacant_units) + ' / ' + C.fmtCount(r.values.total_units, CFG, r.invalid.total_units), r.values.vacant_units === null)
+      ]);
+    });
+    el.appendChild(card('空室率の高い物件（空室戸数 ÷ 総戸数）', rankRows.length
+      ? unitTable(['物件', '空室率', '前週', '前週差', '空室 / 総戸数'], rankRows, [1, 2, 3, 4])
+      : empty('基準週の物件データがありません（' + CFG.display.nullLabel + '）')));
+
+    if (!ua.available) return;
+
+    // 3. 今週の申込・解約
+    var evRows = [];
+    var basisNote = function (x) { return x.basis === 'status' ? '日付なし（前週からの状態変化で判定）' : ''; };
+    ua.newApplications.forEach(function (x) {
+      evRows.push(h('tr', null, [h('td', null, badge('新規申込', 'badge-plain st-app')), propCell(c, x.project_number), unitNo(x), lay(x.unit),
+        h('td', { class: 'nowrap', text: x.date || '—' }), h('td', { text: [basisNote(x), x.unit.text.unit_note].filter(Boolean).join(' / ') || '—' })]));
+    });
+    ua.cancellations.forEach(function (x) {
+      evRows.push(h('tr', null, [h('td', null, badge('申込取消', 'sev-error')), propCell(c, x.project_number), unitNo(x), lay(x.unit),
+        h('td', { class: 'nowrap', text: x.date || '—' }), h('td', { text: [basisNote(x), x.unit.text.unit_note].filter(Boolean).join(' / ') || '—' })]));
+    });
+    ua.newNotices.forEach(function (x) {
+      evRows.push(h('tr', null, [h('td', null, badge('新規解約', 'badge-plain st-notice')), propCell(c, x.project_number), unitNo(x), lay(x.unit),
+        h('td', { class: 'nowrap', text: x.date || '—' }), h('td', { text: ['退去予定 ' + (x.moveOut || CFG.display.nullLabel), basisNote(x)].filter(Boolean).join(' / ') })]));
+    });
+    el.appendChild(card('今週の新規申込・申込取消・新規解約（' + (ua.windowText || '') + '）', h('div', null, [
+      evRows.length ? unitTable(['種別', '物件', '住戸', '間取り', '日付', '備考'], evRows) : empty(ua.unitCount ? '今週の申込・解約はありません' : '基準週の住戸明細がありません'),
+      ua.notJudged.events ? h('p', { class: 'note', text: ua.notJudged.events + '戸は日付がなく前週の住戸明細もないため、今週の動きか判定できません。' }) : null
+    ])));
+
+    // 4. 賃料条件の変更
+    var condRows = [];
+    ua.conditionChanges.forEach(function (x) {
+      x.changes.forEach(function (ch, i) {
+        var f = function (v) { return ch.money ? C.fmtMoney(v, CFG) : C.fmtNum(v, CFG); };
+        condRows.push(h('tr', null, [
+          i === 0 ? propCell(c, x.project_number) : h('td'), i === 0 ? unitNo(x) : h('td'),
+          h('td', { text: ch.label }), numCell(f(ch.from)), numCell(f(ch.to)),
+          h('td', { class: 'num' }, ch.money ? deltaSpan(C.fmtMoney(ch.to - ch.from, CFG, true), ch.to - ch.from, true) : '')
+        ]));
+      });
+    });
+    el.appendChild(card('賃料条件の変更（前週 ' + (c.prevPeriod ? C.formatPeriod(c.prevPeriod) : '—') + ' との比較）', h('div', null, [
+      !ua.hasPrev ? empty('前週の住戸明細がないため比較できません（' + CFG.display.notJudgedLabel + '）')
+        : condRows.length ? unitTable(['物件', '住戸', '項目', '変更前', '変更後', '差'], condRows, [3, 4, 5]) : empty('賃料条件の変更はありません'),
+      ua.hasPrev && ua.notJudged.conditions ? h('p', { class: 'note', text: ua.notJudged.conditions + '戸は前週の明細にないため比較できません（今週から掲載された住戸）。' }) : null,
+      h('p', { class: 'note', text: 'AD・FR は元データ単位のまま表示。' })
+    ])));
+
+    // 5. リノベ・原状回復
+    var workRows = ua.works.map(function (x) {
+      var st = x.completed ? badge('完了 ' + x.completed, 'conf-high')
+        : x.overdue ? badge('完了予定超過 ' + (-x.daysLeft) + '日', 'sev-error')
+        : x.daysLeft === null ? h('span', { class: 'muted', text: '完了予定日データなし' })
+        : h('span', { text: 'あと ' + x.daysLeft + '日' });
+      return h('tr', null, [propCell(c, x.project_number), unitNo(x), lay(x.unit), h('td', { text: C.WORK_TYPE_LABELS[x.type] }),
+        h('td', { class: 'nowrap', text: x.start || CFG.display.nullLabel }), h('td', { class: 'nowrap', text: x.end || CFG.display.nullLabel }), h('td', null, st),
+        h('td', null, statusBadge(x.unit.status))]);
+    });
+    el.appendChild(card('リノベーション・原状回復中の住戸', workRows.length
+      ? unitTable(['物件', '住戸', '間取り', '工事', '開始', '完了予定', '残り', '募集状況'], workRows)
+      : empty(ua.unitCount ? '工事中の住戸はありません' : '基準週の住戸明細がありません')));
+  }
+
+  function unitListCard(c, key) {
+    var units = C.unitsForPeriod(c.m, c.period).filter(function (u) { return u.project_key === key; })
+      .sort(function (a, b) { return String(a.unit_number).localeCompare(String(b.unit_number), 'ja', { numeric: true }); });
+    if (!c.m.units.length) return card('住戸一覧', empty('住戸明細（units）がありません'));
+    if (!units.length) return card('住戸一覧（' + C.formatPeriod(c.period) + '）', empty('基準週の住戸明細がありません'));
+    var rows = units.map(function (u) {
+      return h('tr', null, [
+        h('td', { class: 'nowrap', text: u.unit_number + (u.duplicate ? '（重複）' : '') }), h('td', { text: u.text.layout || CFG.display.nullLabel }),
+        h('td', null, statusBadge(u.status)),
+        numCell(u.vacancyDays === null ? '—' : u.vacancyDays + '日', u.vacancyDays === null),
+        numCell(C.fmtMoney(u.values.asking_rent, CFG, false, u.invalid.asking_rent), u.values.asking_rent === null),
+        numCell(C.fmtCount(u.values.ad, CFG, u.invalid.ad), u.values.ad === null),
+        numCell(C.fmtCount(u.values.fr, CFG, u.invalid.fr), u.values.fr === null),
+        h('td', { text: workLabel(u) }),
+        h('td', { class: 'cell-wrap', text: [u.dateText.notice_date ? '解約通知 ' + u.dateText.notice_date : null, u.dateText.move_out_date ? '退去予定 ' + u.dateText.move_out_date : null, u.text.unit_note].filter(Boolean).join(' / ') || '—' })
+      ]);
+    });
+    return card('住戸一覧（' + C.formatPeriod(c.period) + ' / ' + units.length + '戸）', unitTable(['住戸', '間取り', '状態', '空室日数', '募集賃料', 'AD', 'FR', '工事', '備考'], rows, [3, 4, 5, 6]));
+  }
+
   // ---------- 3. アラート ----------
 
   function renderAlerts(el, c) {
@@ -731,7 +933,7 @@
         return h('tr', null, [
           h('td', null, [x.cat.label, x.it.fromSource ? h('span', { class: 'muted', text: '（元データ通知）' }) : null]),
           h('td', null, x.it.project_number ? h('button', { type: 'button', class: 'linklike', text: x.it.project_number, onclick: function () { openDetail(x.it.project_number); } }) : '—'),
-          h('td', { text: r ? (C.displayName(r, 'property_name_ja') || C.displayName(r, 'project_name') || CFG.display.nullLabel) : '—' }),
+          h('td', { text: (r ? (C.displayName(r, 'property_name_ja') || C.displayName(r, 'project_name') || CFG.display.nullLabel) : '—') + (x.it.unit_number ? ' / 住戸 ' + x.it.unit_number : '') }),
           h('td', { class: 'cell-wrap', text: x.it.message }),
           h('td', { class: 'cell-wrap', text: x.it.file_name || '—' })
         ]);
@@ -806,6 +1008,7 @@
       trendTable
     ])));
 
+    el.appendChild(unitListCard(c, key));
     if (!r) {
       el.appendChild(card('基準週の詳細', empty('基準週 ' + C.formatPeriod(c.period) + ' のレコードがありません')));
       return;
@@ -955,7 +1158,7 @@
     var el = clear($('banners'));
     el.appendChild(h('div', { class: 'banner banner-error', role: 'alert' }, [h('strong', { text: 'データを読み込めません' }), reason]));
     $('filters').hidden = true;
-    ['summary', 'list', 'alerts', 'detail', 'validation'].forEach(function (k) { $('view-' + k).hidden = k !== 'summary'; });
+    ['summary', 'units', 'list', 'alerts', 'detail', 'validation'].forEach(function (k) { $('view-' + k).hidden = k !== 'summary'; });
     var v = clear($('view-summary'));
     v.appendChild(card('データの読み込み方法', h('div', null, [
       h('p', { text: '方法1: 起動スクリプト（start.sh / start.bat）でローカルサーバーを起動し、表示された URL を開く。' }),

@@ -60,6 +60,7 @@ function validate(dir) {
       source_period: model.meta.source_period,
       periods: model.periods,
       property_records: model.records.length,
+      unit_records: model.units.length,
       master_entries: model.master.entries.length,
       files: model.files.length,
       files_success: model.files.filter(function (f) { return f.result === 'success'; }).length,
@@ -93,7 +94,7 @@ function main() {
   var s = res.stats, sm = res.summary;
   var f = function (v) { return core.fmtCount(v, config); };
   console.log('対象週 (source_period): ' + s.source_period + ' / 基準週一覧: ' + s.periods.join(', '));
-  console.log('物件レコード: ' + s.property_records + '件 / 物件マスター: ' + s.master_entries + '件');
+  console.log('物件レコード: ' + s.property_records + '件 / 住戸明細: ' + (s.unit_records ? s.unit_records + '件' : 'なし') + ' / 物件マスター: ' + s.master_entries + '件');
   console.log('ファイル: ' + s.files + '件（正常 ' + s.files_success + ' / 一部 ' + s.files_partial + ' / 失敗 ' + s.files_failed + '） / 検証行: ' + s.validation_rows + '行');
   console.log('件数突合: ' + (s.counts_reconciled ? 'OK' : 'NG') + ' / 公開条件: ' + (s.publishable ? '満たす' : '満たさない'));
   console.log('集計（対象週）: 物件 ' + f(sm.propertyCount.value) + ' / 総戸数 ' + f(sm.total_units.value) + ' / 稼働 ' + f(sm.occupied_units.value) +
