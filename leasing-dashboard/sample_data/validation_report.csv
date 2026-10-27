@@ -1,0 +1,8 @@
+﻿ファイル名,対象物件,処理結果,抽出項目数,読取不能項目,重複の可能性,数値不一致,物件名不一致,データ確度,要確認理由
+SAMPLE_SMP-001_weekly.xlsx,SMP-001,正常,43,,なし,なし,なし,high,
+SAMPLE_SMP-002_weekly.xlsx,SMP-002,正常,43,,なし,なし,なし,high,
+SAMPLE_SMP-003_weekly.xlsx,SMP-003,正常,43,,なし,なし,なし,medium,
+SAMPLE_SMP-004_weekly.xlsx,SMP-004,一部,31,稼働戸数,なし,なし,なし,low,架空サンプル: 稼働戸数セルが読取不能
+SAMPLE_SMP-005_weekly.xlsx,SMP-005,正常,43,,なし,あり,なし,medium,架空サンプル: 稼働率の元データ値が再計算値と不一致
+SAMPLE_SMP-099_weekly.xlsx,SMP-099,正常,43,,なし,なし,なし,medium,
+SAMPLE_broken_weekly.xlsx,,読取失敗,0,全項目,未判定,未判定,未判定,low,架空サンプル: 読取失敗の例

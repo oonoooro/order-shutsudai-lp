@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 外部への通信・外部スクリプトを禁止する（データはローカルでのみ処理） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>週次リーシングダッシュボード</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="header-main">
+    <h1>週次リーシングダッシュボード</h1>
+    <div class="header-meta" id="header-meta" aria-live="polite"></div>
+  </div>
+  <div class="header-actions">
+    <button type="button" id="btn-reload" class="btn">データ再読込</button>
+    <button type="button" id="btn-excel" class="btn btn-ghost btn-export" title="表示中の基準週の全物件を Excel に書き出します（SharePoint で共有する用。フィルターは Excel 側で使えます）">SharePoint用Excelを保存</button>
+    <button type="button" id="btn-history" class="btn btn-ghost btn-export" title="前週比較に使う履歴（dashboard_data.json）を保存します。SharePoint の履歴フォルダに保存し、来週は週報と一緒にドロップしてください">履歴を保存</button>
+    <label class="btn btn-ghost" for="file-input">ファイルを選択</label>
+    <input type="file" id="file-input" accept=".json,.csv,.xlsx,.xlsm,application/json,text/csv" multiple hidden>
+    <button type="button" id="btn-theme" class="btn btn-ghost" aria-label="表示テーマ切替">テーマ</button>
+  </div>
+</header>
+
+<div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="ファイルをドラッグ＆ドロップ、またはクリックして選択">
+  <strong>ここに週報をドラッグ＆ドロップ</strong>
+  <span>週報 Excel（.xlsx / .xlsm）・物件マスター（property_master.csv）・対応表（source_mapping.csv）・dashboard_data.json に対応。画面のどこにドロップしても読み込みます。ファイルはこのブラウザ内で処理し、送信しません。</span>
+</div>
+<div class="drop-overlay" aria-hidden="true"><div>ドロップして読み込む</div></div>
+
+<!-- プログラム（.js）を読み込めなかった場合だけ残る案内。読み込めると app.js が消す -->
+<div id="boot-check" class="banners"><div class="banner banner-error" role="alert"><strong>画面のプログラムを読み込めていません。</strong>ZIP ファイルの中から直接開いている場合は、ZIP を右クリック →「すべて展開」してから、展開したフォルダの index.html を開いてください。index.html だけを別の場所にコピーした場合も動きません（フォルダごと使ってください）。</div></div>
+<div id="banners" class="banners" aria-live="polite"></div>
+
+<nav class="tabs" role="tablist" aria-label="画面切替">
+  <button type="button" role="tab" class="tab" data-tab="summary" aria-selected="true">ポートフォリオサマリー</button>
+  <button type="button" role="tab" class="tab" data-tab="units" aria-selected="false">住戸の動き</button>
+  <button type="button" role="tab" class="tab" data-tab="list" aria-selected="false">物件一覧</button>
+  <button type="button" role="tab" class="tab" data-tab="alerts" aria-selected="false">アラート</button>
+  <button type="button" role="tab" class="tab" data-tab="detail" aria-selected="false">物件詳細</button>
+  <button type="button" role="tab" class="tab" data-tab="validation" aria-selected="false">データ検証</button>
+</nav>
+
+<section class="filters" id="filters" aria-label="フィルター">
+  <label>基準週<select id="f-period"></select></label>
+  <label>Project #<select id="f-project"></select></label>
+  <label>Project Name<input type="search" id="f-project-name" placeholder="部分一致"></label>
+  <label>日本語物件名<input type="search" id="f-name-ja" placeholder="部分一致"></label>
+  <label>SPC<select id="f-spc"></select></label>
+  <label>AM<select id="f-am"></select></label>
+  <label>PM<select id="f-pm"></select></label>
+  <label>稼働率帯<select id="f-band"></select></label>
+  <label>データ確度<select id="f-confidence"></select></label>
+  <label>アラート有無<select id="f-alert"></select></label>
+  <label>重複<select id="f-duplicate"></select></label>
+  <button type="button" id="btn-clear" class="btn btn-ghost">クリア</button>
+  <div id="f-master" class="filters-master" aria-label="物件マスターの項目で絞り込み" hidden></div>
+</section>
+
+<main id="main">
+  <section id="view-summary" class="view" role="tabpanel"></section>
+  <section id="view-units" class="view" role="tabpanel" hidden></section>
+  <section id="view-list" class="view" role="tabpanel" hidden></section>
+  <section id="view-alerts" class="view" role="tabpanel" hidden></section>
+  <section id="view-detail" class="view" role="tabpanel" hidden></section>
+  <section id="view-validation" class="view" role="tabpanel" hidden></section>
+</main>
+
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
+<footer class="app-footer">
+  入力データはこのブラウザ内でのみ処理され、外部へ送信されません。元データは書き換えません。
+</footer>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script src="xlsx.js"></script>
+<script src="ingest.js"></script>
+<script src="xlsx-writer.js"></script>
+<script src="report-xlsx.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+project_number,project_name,property_name_ja,property_name_en,spc,am,pm,master_source
+101,Test A,テスト物件A,Test A,架空SPC,架空AM,架空PM,test
+102,Test B,テスト物件B,Test B,架空SPC,架空AM,架空PM,test
+103,Test C,テスト物件C,Test C,架空SPC,架空AM,架空PM,test

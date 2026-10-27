@@ -1,0 +1,7 @@
+# 実データはリポジトリに含めない（物件名・ファイル名等の社内情報を含むため）
+data/*
+!data/README.md
+# 書き出した Excel レポート（実データを含むため）
+output/
+node_modules/
+*.log

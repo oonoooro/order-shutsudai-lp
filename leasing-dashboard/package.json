@@ -1,0 +1,23 @@
+{
+  "name": "leasing-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "不動産ポートフォリオの週次リーシングダッシュボード（静的 HTML/CSS/JS、外部依存なし）",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "start:sample": "node scripts/serve.js --data sample_data",
+    "validate": "node scripts/validate-data.js",
+    "validate:sample": "node scripts/validate-data.js --data sample_data",
+    "test": "node --test",
+    "test:browser": "node tests/browser_smoke.js",
+    "ingest": "node scripts/ingest-weekly.js",
+    "excel": "node scripts/export-excel.js",
+    "package": "node scripts/build-package.js",
+    "excel:sample": "node scripts/export-excel.js --data sample_data --out output/sample_leasing_dashboard.xlsx",
+    "fixtures": "python3 tests/fixtures/make_weekly_xlsx.py"
+  }
+}

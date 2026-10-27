@@ -1,0 +1,3 @@
+﻿project_number,project_name,property_name_ja,property_name_en,spc,am,pm,master_source
+T-001,Test Garden,テスト物件1,Test Garden,テストSPC1,テストAM社,テストPM社X,test
+T-002,Test Court,テスト物件2,Test Court,テストSPC2,テストAM社,テストPM社Y,test
