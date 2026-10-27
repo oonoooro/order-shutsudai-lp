@@ -31,6 +31,8 @@
 </div>
 <div class="drop-overlay" aria-hidden="true"><div>ドロップして読み込む</div></div>
 
+<!-- プログラム（.js）を読み込めなかった場合だけ残る案内。読み込めると app.js が消す -->
+<div id="boot-check" class="banners"><div class="banner banner-error" role="alert"><strong>画面のプログラムを読み込めていません。</strong>ZIP ファイルの中から直接開いている場合は、ZIP を右クリック →「すべて展開」してから、展開したフォルダの index.html を開いてください。index.html だけを別の場所にコピーした場合も動きません（フォルダごと使ってください）。</div></div>
 <div id="banners" class="banners" aria-live="polite"></div>
 
 <nav class="tabs" role="tablist" aria-label="画面切替">

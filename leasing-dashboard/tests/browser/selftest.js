@@ -182,6 +182,7 @@
   // ---------- 実行と表示 ----------
   function run() {
     var tbody = document.getElementById('results'), summary = document.getElementById('summary');
+    summary.textContent = '確認中…';
     var pass = 0, fail = 0;
     var seq = Promise.resolve();
     checks.forEach(function (c) {

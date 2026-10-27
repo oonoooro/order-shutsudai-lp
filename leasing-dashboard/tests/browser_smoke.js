@@ -170,6 +170,33 @@ async function main() {
   if (SHOTS) await dpage.screenshot({ path: path.join(SHOTS, 'dragdrop.png'), fullPage: false });
   await ctx.close();
 
+  // データがまだない状態: タブが反応する → マスターだけ先にドロップ → あとから週報をドロップすると、そのマスターで紐付ける
+  const nctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  const np = await nctx.newPage();
+  const nerr = [];
+  np.on('pageerror', (e) => nerr.push(String(e)));
+  await np.goto('file://' + path.join(__dirname, '..', 'index.html'));
+  await np.waitForSelector('.banner-error');
+  check(!(await np.$('#boot-check')), 'プログラムを読み込めた場合は「読み込めていません」の案内を出さない');
+  await np.click('.tab[data-tab="validation"]');
+  check(await np.isVisible('#view-validation') && /まだ表示できるデータがありません/.test(await np.textContent('#view-validation')), 'データがなくても「データ検証」タブが反応し、読み込み状況を表示する');
+  await np.setInputFiles('#file-input', [payload(path.join(__dirname, 'fixtures', 'weekly_master.csv'))]);
+  await np.waitForFunction(() => /物件マスターを読み込みました/.test(document.getElementById('banners').textContent), null, { timeout: 15000 });
+  check(/続けて、週報 Excel/.test(await np.textContent('#banners')) && /読込済み/.test(await np.textContent('#view-validation')), 'マスターだけを先にドロップすると保持し、週報のドロップを案内する');
+  await np.click('.tab[data-tab="list"]');
+  check(await np.isVisible('#view-list'), 'データがなくても他のタブに切り替えられる');
+  await np.setInputFiles('#file-input', fs.readdirSync(xdir).filter((f) => /\.xlsx$/.test(f)).map((f) => payload(path.join(xdir, f))));
+  await np.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  check((await np.locator('#view-list tbody tr').count()) === 3 && !/物件マスターがないため/.test(await np.textContent('#banners')), 'あとからドロップした週報を、先に読み込んだマスターで紐付ける');
+  check(nerr.length === 0, 'データがない状態の操作でスクリプトエラーなし' + (nerr.length ? ': ' + nerr.join(' | ') : ''));
+  // index.html だけを別の場所で開いた場合（ZIP を展開せずに開いた場合など）は、案内を表示する
+  const lone = fs.mkdtempSync(path.join(os.tmpdir(), 'leasing-lone-'));
+  fs.copyFileSync(path.join(__dirname, '..', 'index.html'), path.join(lone, 'index.html'));
+  await np.goto('file://' + path.join(lone, 'index.html'));
+  check(await np.isVisible('#boot-check') && /すべて展開/.test(await np.textContent('#boot-check')), 'プログラムを読み込めない場合は、ZIP の展開を案内する');
+  fs.rmSync(lone, { recursive: true, force: true });
+  await nctx.close();
+
   // Node.js のない PC の使い方: index.html を直接開いて週報をドロップ → 開き直しても残る
   const fctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
   const fp = await fctx.newPage();

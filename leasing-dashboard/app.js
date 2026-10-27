@@ -13,7 +13,8 @@
   var state = {
     model: null, texts: null, loadedAt: null, source: null, stale: null, notes: [],
     tab: 'summary', period: null, filters: {}, selectedKey: null,
-    sort: { key: 'key', dir: 1 }, alertCat: null, fileStatus: '', issueSeverity: '', masterFilter: {}, mappingText: null, lastParsed: null
+    sort: { key: 'key', dir: 1 }, alertCat: null, fileStatus: '', issueSeverity: '', masterFilter: {}, mappingText: null, lastParsed: null,
+    pendingMasterText: null, loadError: null
   };
 
   // ---------- DOM ヘルパー（文字列は必ず textContent で入れる） ----------
@@ -216,6 +217,7 @@
     state.loadedAt = new Date();
     state.source = source;
     state.stale = null;
+    state.loadError = null;
     state.notes = (notes || []).slice();
     if (sameAsBefore && source !== 'cache') state.notes.push('dashboard_data.json は前回読込時と同一内容です。');
     if (source !== 'cache' && source !== 'stored') writeCache(texts, source);
@@ -251,12 +253,29 @@
         var role = classifyFile(f);
         if (role) roles[role].push(f); else unknown.push(f.name);
       });
-      unknown.forEach(function (n) { notes.push('「' + n + '」は種類を判別できなかったため読み込みませんでした。'); });
+      unknown.forEach(function (n) {
+        notes.push(/\.xls$/i.test(n) ? '「' + n + '」は古い Excel 形式（.xls）のため読み込めません。Excel で開き、「名前を付けて保存」で .xlsx 形式にしてからドロップしてください。'
+          : '「' + n + '」は種類を判別できなかったため読み込みませんでした。');
+      });
       if (roles.mappingText.length) state.mappingText = roles.mappingText[0].text;
       if (excel.length) { loadFromExcel(excel, roles, notes); return; }
       // 物件マスター・対応表だけをドロップした場合は、今のデータに反映する
       if (!roles.dashboardDataText.length && state.model && (roles.propertyMasterText.length || roles.mappingText.length)) {
         applyMaster(roles, notes);
+        return;
+      }
+      // まだデータがないときに物件マスター・対応表だけをドロップした場合は、保持して週報を待つ
+      if (!roles.dashboardDataText.length && !state.model && (roles.propertyMasterText.length || roles.mappingText.length)) {
+        if (roles.propertyMasterText.length) {
+          state.pendingMasterText = roles.propertyMasterText[0].text;
+          var pm = C.loadMaster(state.pendingMasterText, CFG);
+          notes.push('物件マスターを読み込みました（' + pm.entries.length + '物件' + (pm.extraColumns.length ? '、絞り込み項目: ' + pm.extraColumns.join('・') : '') + '）。');
+        }
+        if (roles.mappingText.length) notes.push('対応表を読み込みました。');
+        notes.push('続けて、週報 Excel（.xlsx / .xlsm）をこの画面にドロップしてください。');
+        state.loadError = null;
+        state.notes = notes;
+        renderNoData();
         return;
       }
       var multi = Object.keys(roles).filter(function (k) { return roles[k].length > 1; });
@@ -268,7 +287,7 @@
         // JSON として読めないファイルが dashboard_data の可能性があれば構文エラーとして扱う
         var jsonLike = d.unique.filter(function (f) { return /\.json$/i.test(f.name); });
         if (jsonLike.length) { failLoad('dashboard_data.json: ' + C.safeParseJSON(jsonLike[0].text).error, true); return; }
-        showTransientError('dashboard_data.json が選択されていません。');
+        showTransientError(notes.concat(['読み込めるファイルがありませんでした。週報 Excel（.xlsx / .xlsm）、property_master.csv、dashboard_data.json のいずれかをドロップしてください。']).join(' '));
         return;
       }
       var cur = state.texts || {};
@@ -316,6 +335,7 @@
     var fromSel = function (k) { return roles[k].length ? roles[k][0].text : null; };
     var masterP = fromSel('propertyMasterText') !== null ? Promise.resolve(fromSel('propertyMasterText'))
       : state.texts && state.texts.propertyMasterText ? Promise.resolve(state.texts.propertyMasterText)
+      : state.pendingMasterText ? Promise.resolve(state.pendingMasterText)
       : fetchText(CFG.dataFiles.propertyMaster).then(function (r) { return r.ok ? r.text : null; });
     var mapP = fromSel('mappingText') !== null ? Promise.resolve(fromSel('mappingText'))
       : state.mappingText ? Promise.resolve(state.mappingText)
@@ -366,8 +386,9 @@
   }
 
   function showTransientError(msg) {
+    if (!state.model) { renderLoadError(msg); return; }
     state.notes = [msg];
-    if (state.model) render(); else renderLoadError(msg);
+    render();
   }
 
   // ---------- フィルター ----------
@@ -1427,17 +1448,39 @@
   // ---------- 起動エラー表示 ----------
 
   function renderLoadError(reason) {
+    state.loadError = reason;
+    state.notes = [];
+    renderNoData();
+  }
+
+  // まだ表示できるデータがないときの画面。どのタブでも、読み込み状況と次の操作を表示する
+  function renderNoData() {
     clear($('header-meta'));
     var el = clear($('banners'));
-    el.appendChild(h('div', { class: 'banner banner-error', role: 'alert' }, [h('strong', { text: 'データを読み込めません' }), reason]));
+    if (state.loadError) el.appendChild(h('div', { class: 'banner banner-error', role: 'alert' }, [h('strong', { text: 'データを読み込めません' }), state.loadError]));
+    (state.notes || []).forEach(function (n) { el.appendChild(h('div', { class: 'banner banner-info', role: 'status' }, [h('strong', { text: 'お知らせ' }), n])); });
     $('filters').hidden = true;
-    ['summary', 'units', 'list', 'alerts', 'detail', 'validation'].forEach(function (k) { $('view-' + k).hidden = k !== 'summary'; });
-    var v = clear($('view-summary'));
-    v.appendChild(card('データの読み込み方法', h('div', null, [
-      h('p', { text: '方法1: 起動スクリプト（start.sh / start.bat）でローカルサーバーを起動し、表示された URL を開く。' }),
-      h('p', { text: '方法2: 右上の「ファイルを選択」から dashboard_data.json・property_master.csv・validation_report.csv を選ぶ（ブラウザ内で読み込むだけで送信しません）。' }),
-      h('p', { class: 'note drop-hint', text: 'この画面にファイルをドラッグ＆ドロップしても読み込めます。' })
-    ])));
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+      t.setAttribute('aria-selected', t.getAttribute('data-tab') === state.tab ? 'true' : 'false');
+    });
+    var pm = state.pendingMasterText ? C.loadMaster(state.pendingMasterText, CFG) : null;
+    var status = h('ul', { class: 'load-status' }, [
+      h('li', { text: '週報 Excel / dashboard_data.json: まだ読み込まれていません' }),
+      h('li', { text: '物件マスター（property_master.csv）: ' + (pm ? '読込済み（' + pm.entries.length + '物件）' : 'まだ読み込まれていません') }),
+      h('li', { text: '対応表（source_mapping.csv）: ' + (state.mappingText ? '読込済み' : '未読込（任意）') })
+    ]);
+    ['summary', 'units', 'list', 'alerts', 'detail', 'validation'].forEach(function (k) {
+      var v = $('view-' + k);
+      v.hidden = k !== state.tab;
+      if (k !== state.tab) return;
+      clear(v);
+      v.appendChild(card('まだ表示できるデータがありません', h('div', null, [
+        h('p', { text: '週報を読み込むと、この画面に表示されます。今の読み込み状況:' }),
+        status,
+        h('p', { text: '読み込み方法: この画面に、その週の週報 Excel（.xlsx / .xlsm）と property_master.csv をまとめてドラッグ＆ドロップするか、右上の「ファイルを選択」で選びます（ブラウザ内で読み込むだけで送信しません）。' }),
+        h('p', { class: 'note', text: 'ローカルサーバー（start.sh / start.bat）で開いた場合は、data/ フォルダの dashboard_data.json などを自動で読み込みます。' })
+      ])));
+    });
   }
 
   // ---------- イベント ----------
@@ -1450,7 +1493,11 @@
 
   function bind() {
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
-      t.addEventListener('click', function () { if (state.model) switchTab(t.getAttribute('data-tab')); });
+      t.addEventListener('click', function () {
+        if (state.model) { switchTab(t.getAttribute('data-tab')); return; }
+        state.tab = t.getAttribute('data-tab');
+        renderNoData();
+      });
     });
     $('f-period').addEventListener('change', function (e) { state.period = e.target.value; populateFilters(); render(); });
     ['f-project', 'f-spc', 'f-am', 'f-pm', 'f-band', 'f-confidence', 'f-alert', 'f-duplicate'].forEach(function (id) {
@@ -1512,6 +1559,9 @@
   function init() {
     var theme = storageGet(THEME_KEY);
     if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+    // プログラムを読み込めたので、読み込めなかった場合の案内を消す
+    var boot = $('boot-check');
+    if (boot) boot.parentNode.removeChild(boot);
     bind();
     startup();
   }
