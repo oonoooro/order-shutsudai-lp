@@ -205,5 +205,5 @@
     return zip(files, date);
   }
 
-  return { writeWorkbook: writeWorkbook, colName: colName, crc32: crc32, STYLE: STYLE };
+  return { writeWorkbook: writeWorkbook, zip: zip, colName: colName, crc32: crc32, STYLE: STYLE };
 });

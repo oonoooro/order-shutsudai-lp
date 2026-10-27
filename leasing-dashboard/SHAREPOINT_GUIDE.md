@@ -2,6 +2,19 @@
 
 管理者への依頼や Power Apps を使わずに、ダッシュボードの内容を SharePoint の URL で共有する手順です。Microsoft 365 Copilot と組み合わせて使います。
 
+## パッケージ
+
+`leasing-dashboard-sharepoint.zip`（`npm run package` で作成）に、必要なものをまとめています。実データは入っていません。
+
+| フォルダ | 中身 |
+|---|---|
+| `README_FIRST.txt` | 最初に読む手順の要約 |
+| `1_sharepoint/` | SharePoint に置く Excel の見本（架空データ）。実際に置くのは毎週書き出す `leasing_dashboard.xlsx` |
+| `2_dashboard/` | ダッシュボード本体（更新担当者の PC で `index.html` を開く）、自己診断、手順書、架空のサンプルデータ |
+| `3_copilot/` | Copilot に貼る・添付する指示文と手順書（`.txt`） |
+
+ZIP は PC に展開して使います。SharePoint 上で `index.html` をクリックしても画面は開かず、ダウンロードされます。複数の更新担当者で共有する場合は、展開したフォルダを更新担当者だけが見られる SharePoint のフォルダに置き、OneDrive で同期して PC 上で開いてください。
+
 ## しくみ
 
 ```

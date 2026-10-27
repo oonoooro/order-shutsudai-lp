@@ -59,6 +59,7 @@ Node.js がない場合は `index.html` をブラウザで直接開き、右上�
 - 表示ルールはダッシュボードと同じ（「データなし」は 0 にしない、比率は小数第 1 位、金額は万円、暫定の明示）。個人情報らしい項目は出力しない
 - 画面の絞り込みに関係なく全物件を書き出す（絞り込みは Excel 側で行う）
 - コマンド: `npm run excel`（`data/` から `output/leasing_dashboard.xlsx` を作成。`--period YYYYMMDD` で基準週を指定）。`output/` はリポジトリ対象外
+- SharePoint に置く一式（ダッシュボード本体・手順書・Copilot 用の指示文・架空データの見本 Excel）は `npm run package` で `output/leasing-dashboard-sharepoint.zip` にまとめられます（実データは入れません。ZIP 内のファイル名は英数字のみ）
 - 外部ライブラリは使わず、`xlsx-writer.js` で Excel を作成（Excel・LibreOffice・openpyxl で開けることを確認済み）
 
 - 画面上の対象週には `report_metadata.source_period` を表示します。
@@ -253,6 +254,7 @@ leasing-dashboard/
 ├── scripts/validate-data.js データ検証
 ├── scripts/ingest-weekly.js 週報 Excel の解析（dashboard_data.json・validation_report.csv を出力）
 ├── scripts/export-excel.js SharePoint 用 Excel レポートの書き出し
+├── scripts/build-package.js SharePoint 用パッケージ（ZIP）の作成
 ├── data/                   実データ置き場（リポジトリ対象外）
 ├── sample_data/            架空サンプル（実在しない物件・数値）
 └── tests/                  自動テストとフィクスチャ（すべて架空データ）
