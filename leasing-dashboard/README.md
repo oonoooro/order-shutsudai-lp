@@ -42,12 +42,14 @@ Node.js がない場合は `index.html` をブラウザで直接開き、右上�
 その週の週報 Excel（複数可）を、ダッシュボードの画面にドラッグ＆ドロップするだけで更新されます。コードの変更は不要です。
 
 - 週報はブラウザ内で解析し、前回までのデータに今回の週を追加します（前週比・週次推移に使用）。ファイルは送信しません。
-- 取込結果・物件マスター・対応表はこのブラウザ内（IndexedDB）に保存され、次に開いたときも表示されます。`data/` フォルダの方が新しい週のデータを持っていれば、そちらを表示します。
+- **取込結果は、既定ではブラウザ内に保存しません**（社内ファイルを SharePoint 以外に置かない運用のため。`config.js` の `storage.keepInBrowser: false`）。前週比較に使う履歴は右上の「履歴を保存」で `dashboard_data.json` として SharePoint に保存し、翌週は週報と一緒にドロップします（「前回までのデータとして引き継ぎました」と表示）。
+- `storage.keepInBrowser` を `true` にすると、取込結果・物件マスター・対応表をこのブラウザ内（IndexedDB）に保存し、次に開いたときも表示します。`data/` フォルダの方が新しい週のデータを持っていれば、そちらを表示します。
+- 保存ボタン（Excel・履歴・検証レポート）は、Edge / Chrome では保存先を選ぶ画面を出します。SharePoint の同期フォルダを選ぶと、「ダウンロード」フォルダを経由せずに保存できます。使えないブラウザではダウンロードとして保存します。
 - **物件マスター（`property_master.csv`）もドロップで反映できます。** 直前に取り込んだ週報は、新しいマスターで紐付けし直します。マスターに列（TMK など）を足すと、その列での絞り込みが自動で増えます。
 - **対応表（`source_mapping.csv`、列: `file_name_pattern,project_number`）をドロップすると、ファイル名だけでは物件を特定できない週報を指定できます。**
 - 物件に紐付かなかった週報や、データのない物件は「データ検証」タブに一覧で出ます。
-- 共有用に、取込結果（`dashboard_data.json`・`validation_report.csv`）を「データ検証」タブから保存できます。`data/` に置くと、他の人も同じ内容を表示できます。
-- ブラウザの保存内容は「データ検証」タブの「ブラウザに保存したデータを削除」で消せます。
+- 取込結果（`dashboard_data.json`・`validation_report.csv`）は「データ検証」タブからも保存できます。`data/` に置くと、ローカルサーバーで開いたときに表示されます。
+- `storage.keepInBrowser: true` の場合、ブラウザの保存内容は「データ検証」タブの「ブラウザに保存したデータを削除」で消せます。
 
 `data/` のファイルを直接差し替えて「データ再読込」を押す方法も使えます。
 
@@ -64,7 +66,7 @@ Node.js がない場合は `index.html` をブラウザで直接開き、右上�
 
 - 画面上の対象週には `report_metadata.source_period` を表示します。
 - 物件明細に複数週の `report_date` があれば「基準週」で切り替えられ、前週比・週次推移に使われます。
-- `dashboard_data.json` が不正な JSON の場合は更新せず、前回正常に読み込んだデータを表示したまま警告バナーを出します（前回データはこのブラウザ内の IndexedDB に保存。外部には送りません）。
+- `dashboard_data.json` が不正な JSON の場合は更新せず、前回正常に読み込んだデータを表示したまま警告バナーを出します（`storage.keepInBrowser: true` の場合は、開き直したあとも前回データを表示します。外部には送りません）。
 
 ## Microsoft 365 Copilot で編集する
 
@@ -271,6 +273,7 @@ leasing-dashboard/
 | `alerts.occupancyDropThreshold` | `0.01` | 稼働率低下の閾値（1.0pt） |
 | `alerts.longVacancyDays` | `90` | 長期空室とみなす最大空室日数 |
 | `occupancyBands` | 80/90/95% | 稼働率帯フィルター |
+| `storage.keepInBrowser` | `false` | 取込結果をブラウザ内（IndexedDB）に保存するか。保存しない場合は「履歴を保存」で SharePoint に保存する |
 | `excelReportFileName` | `'leasing_dashboard.xlsx'` | SharePoint 用 Excel のファイル名（日付を入れない） |
 | `masterColumns` / `validationReportColumns` | — | 列名の別名（列名が変わった場合はここに追加） |
 

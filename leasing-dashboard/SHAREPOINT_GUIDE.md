@@ -2,33 +2,43 @@
 
 管理者への依頼や Power Apps を使わずに、ダッシュボードの内容を SharePoint の URL で共有する手順です。Microsoft 365 Copilot と組み合わせて使います。
 
-## パッケージ
-
-`leasing-dashboard-sharepoint.zip`（`npm run package` で作成）に、必要なものをまとめています。実データは入っていません。
-
-| フォルダ | 中身 |
-|---|---|
-| `README_FIRST.txt` | 最初に読む手順の要約 |
-| `1_sharepoint/` | SharePoint に置く Excel の見本（架空データ）。実際に置くのは毎週書き出す `leasing_dashboard.xlsx` |
-| `2_dashboard/` | ダッシュボード本体（更新担当者の PC で `index.html` を開く）、自己診断、手順書、架空のサンプルデータ |
-| `3_copilot/` | Copilot に貼る・添付する指示文と手順書（`.txt`） |
-
-ZIP は PC に展開して使います。SharePoint 上で `index.html` をクリックしても画面は開かず、ダウンロードされます。複数の更新担当者で共有する場合は、展開したフォルダを更新担当者だけが見られる SharePoint のフォルダに置き、OneDrive で同期して PC 上で開いてください。
+社内ファイルは SharePoint にだけ置く運用を前提にしています。週報・物件マスター・履歴・書き出した Excel は、すべて SharePoint のフォルダに置き、PC の「ダウンロード」フォルダやブラウザ内には残しません。
 
 ## しくみ
 
 ```
-更新担当者の PC                                SharePoint                        閲覧者
-┌───────────────────────────┐             ┌──────────────────────┐         ┌─────────────────────┐
-│ index.html（このダッシュボード） │  アップロード │ leasing_dashboard.xlsx │  URL    │ Excel for the web で表示 │
-│  ① 週報 Excel をドロップ        │ ─────────▶ │ （毎週同じ名前で置き換え）│ ──────▶ │ 見出しの ▼ で絞り込み     │
-│  ② 「SharePoint用Excelを保存」  │  （置換）    │ SharePoint ページ      │         │ Copilot に質問          │
-└───────────────────────────┘             └──────────────────────┘         └─────────────────────┘
+SharePoint（ドキュメント ライブラリ）                         閲覧者
+リーシングダッシュボード/
+├── 公開/  leasing_dashboard.xlsx  ◀─────────────┐        URL で Excel を表示
+│                                                │        見出しの ▼ で絞り込み
+└── 作業/（更新担当者だけ）                       │ ③ 保存（置換）
+    ├── ツール/  index.html ほか ── ① 開く ──▶ ブラウザ（Edge）
+    ├── 週報/    その週の週報 Excel ─ ② ドロップ ─▶   ・週報の解析と集計
+    ├── マスター/ property_master.csv ─ ② ドロップ ─▶   ・外部へは送信しない
+    └── 履歴/    dashboard_data.json ◀─ ④ 保存 ─┘
+              （② で一緒にドロップすると前週比較に使う）
+
+※ 作業フォルダは「OneDrive へのショートカット」（または「同期」）で PC のエクスプローラーに表示し、そこから開く・保存する
 ```
 
-- 週報の解析・集計・チェックは、これまでどおり更新担当者の PC のブラウザ内で行います（外部には送信しません）。
-- SharePoint には、集計結果の Excel（`leasing_dashboard.xlsx`）だけを置きます。週報の原本は置きません。
-- 毎週、同じフォルダに同じファイル名で置き換えるので、**URL は変わりません**。古い週の内容はバージョン履歴に残ります。
+- 週報の解析・集計・チェックは、更新担当者のブラウザの中で行います（外部には送信しません）。
+- 保存ボタンを押すと保存先を選ぶ画面が出るので、SharePoint のフォルダ（同期したフォルダ）を選びます。「ダウンロード」フォルダを経由しません（Edge / Chrome）。
+- 取込結果はブラウザ内に保存しません（`config.js` の `storage.keepInBrowser: false`）。前週比較に使う履歴は `作業/履歴/dashboard_data.json` に保存し、翌週は週報と一緒にドロップします。
+- `公開/leasing_dashboard.xlsx` は毎週同じ名前で置き換えるので、**URL は変わりません**。古い週の内容はバージョン履歴に残ります。
+- 同期したフォルダのファイルは、開いたときに PC に一時的に保存されます（OneDrive のファイル オンデマンド）。保存先は SharePoint のままですが、同期の利用が社内ルールで認められているかは、念のため確認してください。
+
+### パッケージ
+
+`leasing-dashboard-sharepoint.zip`（`npm run package` で作成）に、必要なものをまとめています。社内データは入っていません（見本は架空データです）。
+
+| フォルダ | 中身 |
+|---|---|
+| `README_FIRST.txt` | 最初に読む手順の要約 |
+| `1_sharepoint/` | `公開` フォルダに置く Excel の見本（架空データ）。見た目の確認用 |
+| `2_dashboard/` | ダッシュボード本体。`作業/ツール` フォルダに中身をアップロードする |
+| `3_copilot/` | Copilot に貼る・添付する指示文と手順書（`.txt`） |
+
+SharePoint 上で `index.html` をクリックしても画面は開かず、ダウンロードされます。必ず同期したフォルダから開いてください。
 
 ### このダッシュボードの画面（HTML）を、そのまま SharePoint の URL で開けない理由
 
@@ -67,23 +77,37 @@ ZIP は PC に展開して使います。SharePoint 上で `index.html` をク�
 ### 1. SharePoint にフォルダを作る
 
 1. 共有したい SharePoint サイトの「ドキュメント」を開きます。
-2. 「新規」→「フォルダー」で `リーシングダッシュボード` などのフォルダを作ります。
-3. 権限: 更新担当者は「編集」、閲覧者は「表示」にします（フォルダの「アクセス許可の管理」）。
+2. 「新規」→「フォルダー」で `リーシングダッシュボード` を作り、その中に `公開` と `作業` を作ります。`作業` の中に `ツール`・`週報`・`マスター`・`履歴` を作ります（週報がすでに別の SharePoint フォルダにある場合は、`週報` は作らずそのフォルダを使います）。
+3. 権限: `公開` は閲覧者に「表示」、更新担当者に「編集」。`作業` は更新担当者だけに「編集」を付け、閲覧者には付けません（フォルダの「アクセス許可の管理」）。
+4. `作業/マスター` に `property_master.csv` をアップロードします。
 
-### 2. 最初の Excel を作ってアップロードする
+### 2. ツールを SharePoint に置く
 
-1. 更新担当者の PC で `index.html` を Edge または Chrome で開き、その週の週報 Excel と `property_master.csv` をドロップします。
-2. 画面右上の **「SharePoint用Excelを保存」** を押します。ダウンロード フォルダに `leasing_dashboard.xlsx` が保存されます。
-3. 1. のフォルダを開き、「アップロード」→「ファイル」で `leasing_dashboard.xlsx` を選びます。
-4. アップロードしたファイルの「…」→「リンクのコピー」で URL を控えます。**この URL を閲覧者に共有します。**
+1. `leasing-dashboard-sharepoint.zip` を右クリック →「すべて展開」します（中身はツールと架空データだけで、社内データは含みません）。
+2. SharePoint の `作業/ツール` を開き、「アップロード」→「フォルダー」で、展開した `2_dashboard` の**中身**（`index.html` などが入ったフォルダ）を選びます。`index.html` と同じ場所に `app.js`・`config.js` などが並んでいれば OK です。
+3. PC に残った ZIP と展開したフォルダは削除します。
 
-### 3. SharePoint ページを作る（任意）
+### 3. 作業フォルダを PC から開けるようにする
+
+1. SharePoint で `リーシングダッシュボード` フォルダを選び、「OneDrive へのショートカットの追加」を選びます（使えない場合は、ライブラリの「同期」）。
+2. エクスプローラーの OneDrive（会社名）の下に `リーシングダッシュボード` が表示されることを確認します。
+3. `作業/ツール/selftest.html` を Edge で開き、「すべて OK」になることを確認します。
+4. `作業/ツール/index.html` を右クリック →「プログラムから開く」→ Edge で開きます。ブックマークしておくと、翌週から簡単に開けます。
+
+### 4. 最初の Excel を作る
+
+1. `index.html` の画面に、`作業/週報` の週報 Excel と `作業/マスター/property_master.csv` をまとめてドラッグ＆ドロップします。
+2. 画面右上の **「SharePoint用Excelを保存」** を押し、保存先に `リーシングダッシュボード/公開` を選びます（ファイル名は `leasing_dashboard.xlsx` のまま）。
+3. **「履歴を保存」** を押し、保存先に `作業/履歴` を選びます（`dashboard_data.json`）。
+4. SharePoint で `公開/leasing_dashboard.xlsx` の「…」→「リンクのコピー」で URL を控えます。**この URL を閲覧者に共有します。**
+
+### 5. SharePoint ページを作る（任意）
 
 サイトのページから見られるようにする場合です。
 
 1. サイトの「新規」→「ページ」で、空白のページを作ります。タイトルは「週次リーシングダッシュボード」など。
-2. 「＋」→ **「ファイルとメディア」**（ファイル ビューアー）Web パーツを追加し、`leasing_dashboard.xlsx` を選びます。ページには Excel の最初のシート（サマリー）が表示されます。
-3. 「＋」→ **「ボタン」** Web パーツを追加し、ラベルを「全シートを開く（絞り込み）」、リンクを 2. で控えた URL にします。
+2. 「＋」→ **「ファイルとメディア」**（ファイル ビューアー）Web パーツを追加し、`公開/leasing_dashboard.xlsx` を選びます。ページには Excel の最初のシート（サマリー）が表示されます。
+3. 「＋」→ **「ボタン」** Web パーツを追加し、ラベルを「全シートを開く（絞り込み）」、リンクを 4. で控えた URL にします。
 4. 必要なら「テキスト」Web パーツで、使い方（「データなし」は 0 ではない、など）を書きます。
 5. 「発行」を押します。
 
@@ -91,20 +115,19 @@ ZIP は PC に展開して使います。SharePoint 上で `index.html` をク�
 
 ## 毎週の更新（更新担当者）
 
-1. `index.html` を開き、その週の週報 Excel をドロップします（マスターを変えた週は `property_master.csv` も）。
-2. 「データ検証」タブで、読取失敗・未紐付けのファイルがないか確認します。
-3. 「SharePoint用Excelを保存」を押します。
-4. SharePoint のフォルダで「アップロード」→ `leasing_dashboard.xlsx` を選び、同じ名前のファイルがあると表示されたら **「置換」** を選びます。
-   - 名前を変えたり、別のフォルダに置いたりすると URL が変わります。
-   - 前の週の内容は、ファイルの「…」→「バージョン履歴」で見られます。
-5. （推奨）「データ検証」タブの「dashboard_data.json を保存」で保存したファイルを、更新担当者だけが見られるフォルダに置いておきます。別の PC で更新するときに `data/` に置くか画面にドロップすると、前週比較を続けられます。
+1. 週報を `作業/週報` に入れます（マスターを変えた週は `作業/マスター/property_master.csv` も更新）。
+2. `作業/ツール/index.html` を Edge で開き、次の 3 つをまとめてドロップします。
+   - その週の週報 Excel
+   - `作業/マスター/property_master.csv`
+   - `作業/履歴/dashboard_data.json`（前週比較に使う。画面に「前回までのデータとして引き継ぎました」と出ます）
+3. 「データ検証」タブで、読取失敗・未紐付けのファイルがないか確認します。
+4. 「SharePoint用Excelを保存」→ `公開` を選び、`leasing_dashboard.xlsx` を置き換えます。
+5. 「履歴を保存」→ `作業/履歴` を選び、`dashboard_data.json` を置き換えます。
+6. ブラウザを閉じます（取込結果はブラウザに残りません）。
 
-Node.js がある PC では、コマンドでも書き出せます（`data/` の内容から作成。入力ファイルは変更しません）。
-
-```
-npm run excel                        # output/leasing_dashboard.xlsx に書き出す
-node scripts/export-excel.js --period 20261019   # 基準週を指定
-```
+- 名前を変えたり、別のフォルダに保存したりすると、閲覧者の URL が変わります。
+- 前の週の内容は、ファイルの「…」→「バージョン履歴」で見られます。
+- 保存先を選ぶ画面が出ないブラウザ（Firefox など）では、「ダウンロード」フォルダに保存されます。Edge か Chrome を使ってください。
 
 ## 閲覧者の使い方
 
@@ -159,11 +182,12 @@ Excel レポートの「長期空室」シートに「募集開始日」の列�
 
 ## うまくいかないとき
 
-- **画面が反応しない・「画面のプログラムを読み込めていません」と出る:** ZIP の中から直接開いているか、`index.html` だけを別の場所にコピーしています。ZIP を右クリック →「すべて展開」し、展開したフォルダ（`2_dashboard`）の `index.html` を開いてください。
+- **画面が反応しない・「画面のプログラムを読み込めていません」と出る:** `index.html` と同じフォルダに `app.js`・`config.js` などがありません。ZIP の中から直接開いた、`index.html` だけを別の場所にコピーした、などが原因です。`2_dashboard` の中身をまとめて `作業/ツール` にアップロードし、同期したフォルダから開いてください。
+- **前週比較が「前週データなし」になる:** `作業/履歴/dashboard_data.json` を週報と一緒にドロップしていません。
 - **「まだ表示できるデータがありません」と出る:** 週報 Excel がまだ読み込まれていません。画面の「今の読み込み状況」を確認し、週報 Excel（.xlsx / .xlsm）をドロップしてください。物件マスターだけを先にドロップした場合は保持しているので、続けて週報をドロップすれば紐付けされます。
 - **「古い Excel 形式（.xls）」と出る:** Excel で開き、「名前を付けて保存」で `.xlsx` 形式にしてからドロップしてください。
-- **ボタンを押しても保存されない:** ブラウザのダウンロードがブロックされていないか確認してください。`selftest.html` で「Excel出力」が OK になるかも確認してください。
-- **アップロードで「置換」が出ない:** ファイル名が違います。`leasing_dashboard.xlsx` のままアップロードしてください（ブラウザが `leasing_dashboard (1).xlsx` のように名前を変えた場合は、元の名前に直してからアップロードします）。
+- **ボタンを押しても保存されない:** 保存先を選ぶ画面で「キャンセル」した場合は何も保存しません。Firefox などではダウンロードとして保存されるので、ブロックされていないか確認してください。`selftest.html` で「Excel出力」が OK になるかも確認してください。
+- **閲覧者の URL で古い内容が出る:** 保存したファイル名か保存先が違います。`公開` フォルダに `leasing_dashboard.xlsx` の名前のまま保存してください（`leasing_dashboard (1).xlsx` のように名前が変わると別のファイルになります）。OneDrive の同期が終わっているかも確認してください。
 - **ページの表示が古い:** ページを再読み込みしてください。ファイルの「バージョン履歴」で最新版がアップロードされているか確認できます。
 - **Excel を直接編集してしまった:** 翌週の置換で上書きされます。この Excel は毎週作り直すものなので、メモは別のファイルに書いてください。
 
@@ -173,4 +197,6 @@ Excel レポートの「長期空室」シートに「募集開始日」の列�
 - カスタム スクリプト（24 時間で「ブロック」に戻る）: [Allow or prevent custom scripts in SharePoint sites](https://learn.microsoft.com/en-us/sharepoint/allow-or-prevent-custom-script)
 - ファイルとメディア（ファイル ビューアー）Web パーツ: [Use the File and Media web part](https://support.microsoft.com/en-us/office/use-the-file-and-media-web-part-e53a9602-e7b3-4fff-9126-de2f18d1900c)
 - シート ビュー: [Create and manage Sheet Views in Excel](https://support.microsoft.com/en-us/office/create-and-manage-sheet-views-in-excel-0eea3dc5-d7d1-44c5-a953-25ebfbd6c1a6)
+- SharePoint のフォルダを PC から使う（同期・ショートカット・ファイル オンデマンド）: [Sync SharePoint files and folders](https://support.microsoft.com/en-us/onedrive/sync/sharepoint-training/sync-sharepoint-files-and-folders)、[Save disk space with OneDrive Files On-Demand for Windows](https://support.microsoft.com/en-us/office/sync-files-with-onedrive-files-on-demand-1ab17c60-af03-4c63-a24c-bb1e131f76c9)
+- 保存先を選ぶ画面（showSaveFilePicker。Edge / Chrome 86 以降、Firefox・Safari は非対応）: [MDN: Window.showSaveFilePicker()](https://developer.mozilla.org/en-US/docs/Web/API/Window/showSaveFilePicker)、[Can I use](https://caniuse.com/mdn-api_window_showsavefilepicker)
 - SharePoint のエージェント（対応ファイル形式に XLSX を含む）: [Frequently asked questions about agents in SharePoint](https://support.microsoft.com/en-us/sharepoint/copilot-in-sharepoint/frequently-asked-questions-about-copilot-in-sharepoint)、[Interact with agents in SharePoint](https://support.microsoft.com/en-us/sharepoint/copilot-in-sharepoint/interact-with-agents-in-sharepoint)

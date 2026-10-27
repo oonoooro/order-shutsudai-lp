@@ -40,7 +40,21 @@ async function main() {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + server.address().port + '/';
   const browser = await chromium.launch();
+  // ブラウザ内への保存は既定で無効（storage.keepInBrowser: false）。保存機能を確かめる画面だけ、設定を有効にして配信する
+  const keepInBrowser = (target) => target.route('**/config.js', async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, body: (await res.text()) + '\nwindow.DASHBOARD_CONFIG.storage = { keepInBrowser: true };\n' });
+  });
+  // 保存先を選ぶ画面の代わり（選んだことにして、書き込んだ内容を記録する）
+  const fakePicker = () => {
+    window.__saved = [];
+    window.showSaveFilePicker = (opts) => Promise.resolve({
+      name: opts.suggestedName,
+      createWritable: () => Promise.resolve({ chunks: [], write(b) { return b.arrayBuffer().then((x) => { this.chunks.push(new Uint8Array(x)); }); }, close() { window.__saved.push({ name: opts.suggestedName, bytes: this.chunks.reduce((n, c) => n + c.length, 0), text: opts.suggestedName.endsWith('.json') ? new TextDecoder().decode(this.chunks[0]) : null }); return Promise.resolve(); } })
+    });
+  };
   const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+  await keepInBrowser(page);
   const errors = [], external = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -133,6 +147,9 @@ async function main() {
 
   // ドラッグ＆ドロップの流れ: 週報だけ → マスターだけ（再紐付け）→ 開き直しても残る → マスターの列で絞り込み
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  await keepInBrowser(ctx);
+  // 保存先を選ぶ画面が使えないブラウザでは、ダウンロードとして保存する
+  await ctx.addInitScript(() => { window.showSaveFilePicker = undefined; });
   const dpage = await ctx.newPage();
   const derrors = [];
   dpage.on('pageerror', (e) => derrors.push(String(e)));
@@ -206,17 +223,46 @@ async function main() {
   await fp.waitForSelector('#dropzone');
   await fp.setInputFiles('#file-input', fs.readdirSync(xdir).map((f) => payload(path.join(xdir, f))).concat([payload(path.join(__dirname, 'fixtures', 'weekly_master.csv'))]));
   await fp.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
-  await fp.waitForSelector('body[data-saved]', { timeout: 15000 });
+  // 既定ではブラウザに保存しないので、開き直すと表示は消える
   await fp.reload();
-  await fp.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
-  check(/ブラウザに保存した取込結果/.test(await fp.textContent('#banners')), 'index.html を直接開いた場合も、ドロップした取込結果が開き直したあとに残る');
+  await fp.waitForSelector('#view-summary .card');
+  check(/まだ表示できるデータがありません/.test(await fp.textContent('#view-summary')) && !(await fp.$('body[data-saved]')), '既定では取込結果をブラウザに保存しない（開き直すと表示は消える）');
+  await fctx.close();
+
+  // SharePoint の同期フォルダに直接保存する流れ: 保存先を選ぶ → 履歴を保存 → 翌週は履歴と週報を一緒にドロップ
+  const sctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  await sctx.addInitScript(fakePicker);
+  const fp2 = await sctx.newPage();
+  fp2.on('pageerror', (e) => ferr.push(String(e)));
+  await fp2.goto('file://' + path.join(__dirname, '..', 'index.html'));
+  await fp2.setInputFiles('#file-input', fs.readdirSync(xdir).map((f) => payload(path.join(xdir, f))).concat([payload(path.join(__dirname, 'fixtures', 'weekly_master.csv'))]));
+  await fp2.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  check(/履歴を保存/.test(await fp2.textContent('#banners')), 'ブラウザに保存しない設定では、履歴を SharePoint に保存するよう案内する');
+  await fp2.click('#btn-excel');
+  await fp2.waitForFunction(() => window.__saved.length === 1, null, { timeout: 15000 });
+  await fp2.click('#btn-history');
+  await fp2.waitForFunction(() => window.__saved.length === 2, null, { timeout: 15000 });
+  const saved = await fp2.evaluate(() => window.__saved);
+  check(saved[0].name === require('../config').excelReportFileName && saved[0].bytes > 1000 && saved[1].name === 'dashboard_data.json', '保存先を選ぶ画面から Excel と履歴を保存できる（ダウンロード フォルダを経由しない）');
+  check(/に保存しました/.test(await fp2.textContent('#banners')), '保存した場所を画面で知らせる');
+  await fp2.reload();
+  await fp2.setInputFiles('#file-input', fs.readdirSync(xdir).filter((f) => /\.xlsx$/.test(f)).map((f) => payload(path.join(xdir, f)))
+    .concat([payload(path.join(__dirname, 'fixtures', 'weekly_master.csv')), { name: 'dashboard_data.json', mimeType: 'application/json', buffer: Buffer.from(saved[1].text) }]));
+  await fp2.waitForFunction(() => /20260111/.test(document.getElementById('header-meta').textContent), null, { timeout: 15000 });
+  check(/前回までのデータとして引き継ぎました/.test(await fp2.textContent('#banners')), '履歴（dashboard_data.json）を週報と一緒にドロップすると、前回までのデータとして引き継ぐ');
+  // 保存先の画面で「キャンセル」した場合は何もしない
+  await fp2.evaluate(() => { window.showSaveFilePicker = () => Promise.reject(new DOMException('cancel', 'AbortError')); });
+  const before2 = await fp2.textContent('#banners');
+  await fp2.click('#btn-excel');
+  await fp2.waitForTimeout(300);
+  check((await fp2.textContent('#banners')) === before2, '保存先の画面でキャンセルした場合は何もしない');
   check(ferr.length === 0, 'index.html を直接開いた場合にスクリプトエラーなし' + (ferr.length ? ': ' + ferr.join(' | ') : ''));
   // 自己診断ページ（Node.js なしでの確認用）
-  const sp = await fctx.newPage();
+  const sp = await sctx.newPage();
   await sp.goto('file://' + path.join(__dirname, '..', 'selftest.html'));
   await sp.waitForSelector('body[data-result]', { timeout: 30000 });
   check((await sp.getAttribute('body', 'data-result')) === 'ok', '自己診断ページ（selftest.html）がすべて OK: ' + (await sp.textContent('#summary')));
-  await fctx.close();
+  await sctx.close();
 
   await browser.close();
   await new Promise((r) => server.close(r));

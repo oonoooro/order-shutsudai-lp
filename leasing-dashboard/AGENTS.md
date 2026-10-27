@@ -49,6 +49,7 @@
 - **KPI カード:** `app.js` の `renderSummary`
 - **アラートの区分・条件:** `core.js` の `ALERT_CATEGORIES` と `computeAlerts`
 - **SharePoint 用 Excel のシート・列:** `report-xlsx.js` の `buildReport`。セルは部品（`num`・`rate`・`money`・`text`・`none`）で作り、値がないときは「データなし」にする（0 にしない）。ファイル名は `config.js` の `excelReportFileName`（日付を入れない。毎週同じ名前で置き換えて URL を保つ）
+- **取込結果をブラウザに保存するか:** `config.js` の `storage.keepInBrowser`（既定 `false`。社内ファイルを SharePoint 以外に置かない運用のため。履歴は `dashboard_data.json` を SharePoint に保存して、週報と一緒にドロップする）
 - **週報の見出しの表記ゆれ:** `ingest.js` の各様式（`parseA` / `parseB` / `parseC` / `parseD`）の `findHeader` に別名を追加
 - **新しい週報の様式:** `ingest.js` の `detectFormat` に判定を追加し、`parseX` を作る。架空のフィクスチャを `tests/fixtures/make_weekly_xlsx.py` に追加してテストする（Python と Node.js が必要。ない場合は様式の見本を添えて開発者に依頼する）。
 

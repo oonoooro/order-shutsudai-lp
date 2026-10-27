@@ -83,7 +83,9 @@
   }
 
   // ブラウザ内の保存領域。取込結果は大きくなるため IndexedDB を使い、使えない環境では localStorage に保存する
+  // config.js の storage.keepInBrowser が false のときは何も保存せず、読み出しも空を返す
   var Store = (function () {
+    var enabled = !(CFG.storage && CFG.storage.keepInBrowser === false);
     var dbp = null;
     function open() {
       if (dbp) return dbp;
@@ -111,7 +113,9 @@
       });
     }
     return {
+      enabled: enabled,
       get: function (k) {
+        if (!enabled) return Promise.resolve(null);
         return tx('readonly', function (st) { return st.get(k); }).then(function (v) {
           if (v !== null && v !== true && v !== undefined) return v;
           var raw = storageGet('leasing-dashboard:' + k);
@@ -119,6 +123,7 @@
         });
       },
       set: function (k, v) {
+        if (!enabled) return Promise.resolve(false);
         return tx('readwrite', function (st) { return st.put(v, k); }).then(function (ok) {
           if (ok) return true;
           return storageSet('leasing-dashboard:' + k, JSON.stringify(v));
@@ -345,7 +350,11 @@
     }));
     Promise.all([masterP, mapP, parsed]).then(function (r) {
       var prev = null;
-      if (state.model && !state.model.meta.is_sample && state.texts) {
+      if (roles.dashboardDataText.length) {
+        // 一緒にドロップした dashboard_data.json（SharePoint に保存した履歴）を前回までのデータとして使う
+        var dp = C.safeParseJSON(roles.dashboardDataText[0].text);
+        if (dp.ok) { prev = dp.value; notes.push('一緒にドロップした「' + roles.dashboardDataText[0].name + '」を前回までのデータとして引き継ぎました。'); }
+      } else if (state.model && !state.model.meta.is_sample && state.texts) {
         var p = C.safeParseJSON(state.texts.dashboardDataText);
         if (p.ok) prev = p.value;
       }
@@ -354,6 +363,8 @@
       var unlinked = built.files.filter(function (x) { return x.status !== 'failed' && !x.project_key && x.format !== 'D'; }).length;
       notes.push('週報 Excel ' + excelFiles.length + 'ファイルをこのブラウザ内で解析しました（外部には送信していません）。' +
         (prev ? '前回までのデータに今回の週を追加しました。' : '') + (unlinked ? '物件に紐付かないファイルが ' + unlinked + '件あります（「データ検証」で確認、対応表で指定できます）。' : ''));
+      if (!prev) notes.push('前回までのデータ（dashboard_data.json）がないため、前週比較はできません。前回保存した dashboard_data.json があれば、週報と一緒にドロップしてください。');
+      if (!Store.enabled) notes.push('このブラウザには保存しません。来週の前週比較のため、「履歴を保存」で dashboard_data.json を SharePoint の履歴フォルダに保存してください。');
       state.lastBuilt = built;
       state.mappingText = r[1] || state.mappingText || null;
       state.lastParsed = { results: r[2], savedAt: new Date().toISOString() };
@@ -367,12 +378,44 @@
     var R = window.LeasingReport;
     if (!R || !window.LeasingXlsxWriter) { showTransientError('Excel 書き出し機能（xlsx-writer.js・report-xlsx.js）を読み込めませんでした。'); return; }
     if (!state.model) { showTransientError('表示するデータがないため、Excel を書き出せません。'); return; }
-    try {
-      var r = R.buildReport(state.model, state.period, CFG);
-      saveText(r.fileName, r.bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      state.notes = ['「' + r.fileName + '」を保存しました（基準週 ' + C.formatPeriod(state.period) + '）。SharePoint の同じ場所に同じ名前でアップロードすると、URL を変えずに更新できます。'];
+    var r;
+    try { r = R.buildReport(state.model, state.period, CFG); } catch (e) { showTransientError('Excel の書き出しに失敗しました: ' + (e && e.message ? e.message : e)); return; }
+    saveFile(r.fileName, r.bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx', 'Excel ブック').then(function (res) {
+      if (res.cancelled) return;
+      state.notes = [res.picker
+        ? '「' + res.name + '」に保存しました（基準週 ' + C.formatPeriod(state.period) + '）。SharePoint の同期フォルダに保存した場合は、同期が終わると SharePoint の同じ URL に反映されます。'
+        : '「' + r.fileName + '」をダウンロードしました（基準週 ' + C.formatPeriod(state.period) + '）。ダウンロード フォルダには残さず、SharePoint の同じ場所に同じ名前でアップロード（置換）してください。'];
       render();
-    } catch (e) { showTransientError('Excel の書き出しに失敗しました: ' + (e && e.message ? e.message : e)); }
+    }, function (e) { showTransientError('Excel の保存に失敗しました: ' + (e && e.message ? e.message : e)); });
+  }
+
+  // 前週比較に使う履歴（dashboard_data.json）を保存する
+  function saveHistory() {
+    if (!state.texts || !state.texts.dashboardDataText) { showTransientError('保存する履歴がありません。'); return; }
+    saveFile('dashboard_data.json', state.texts.dashboardDataText, 'application/json', '.json', 'JSON').then(function (res) {
+      if (res.cancelled) return;
+      state.notes = [(res.picker ? '「' + res.name + '」に保存しました。' : 'dashboard_data.json をダウンロードしました。SharePoint の履歴フォルダに移してください。') + '来週は、週報と一緒にこのファイルをドロップすると前週比較ができます。'];
+      render();
+    }, function (e) { showTransientError('履歴の保存に失敗しました: ' + (e && e.message ? e.message : e)); });
+  }
+
+  // ファイルの保存。Edge / Chrome では保存先を選ぶ画面を出し、SharePoint の同期フォルダなどに直接保存できる。
+  // 使えないブラウザでは、ダウンロードとして保存する
+  function saveFile(name, data, type, ext, label) {
+    if (typeof window.showSaveFilePicker === 'function') {
+      var accept = {}; accept[type] = [ext];
+      return window.showSaveFilePicker({ suggestedName: name, types: [{ description: label, accept: accept }] }).then(function (handle) {
+        return handle.createWritable().then(function (w) {
+          return w.write(new Blob([data], { type: type })).then(function () { return w.close(); });
+        }).then(function () { return { picker: true, name: handle.name }; });
+      }, function (e) {
+        if (e && e.name === 'AbortError') return { cancelled: true };
+        saveText(name, data, type);
+        return { picker: false };
+      });
+    }
+    saveText(name, data, type);
+    return Promise.resolve({ picker: false });
   }
 
   function saveText(name, textIn, type) {
@@ -1363,14 +1406,16 @@
     // 週報 Excel を解析した場合は、結果を保存して data/ に置けるようにする
     if (state.source === 'excel' && state.texts) {
       el.appendChild(card('解析結果の保存', h('div', null, [
-        h('p', { class: 'note', text: '保存した dashboard_data.json と validation_report.csv を data/ フォルダに置くと、次回からこの結果を表示し、翌週の前週比較にも使われます。' }),
+        h('p', { class: 'note', text: '保存先を選ぶ画面が出たら、SharePoint の同期フォルダ（履歴フォルダ）を選んでください。来週は dashboard_data.json を週報と一緒にドロップすると、前週比較に使われます。' }),
         h('div', { class: 'header-actions' }, [
-          h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'dashboard_data.json を保存', onclick: function () { saveText('dashboard_data.json', state.texts.dashboardDataText, 'application/json'); } }),
-          h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'validation_report.csv を保存', onclick: function () { saveText('validation_report.csv', state.texts.validationReportText || '', 'text/csv'); } })
+          h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'dashboard_data.json を保存', onclick: saveHistory }),
+          h('button', { type: 'button', class: 'btn btn-ghost btn-small btn-export', text: 'validation_report.csv を保存', onclick: function () { saveFile('validation_report.csv', state.texts.validationReportText || '', 'text/csv', '.csv', 'CSV'); } })
         ])
       ])));
     }
-    el.appendChild(card('ブラウザに保存したデータ', h('div', null, [
+    if (!Store.enabled) {
+      el.appendChild(card('ブラウザへの保存', h('p', { class: 'note', text: '取込結果はこのブラウザに保存しません（社内ファイルを SharePoint 以外に置かない設定。config.js の storage.keepInBrowser）。画面を閉じると表示は消えます。前週比較に使う履歴は「履歴を保存」で SharePoint に保存してください。' })));
+    } else el.appendChild(card('ブラウザに保存したデータ', h('div', null, [
       h('p', { class: 'note', text: 'ドロップした週報の取込結果・物件マスター・対応表は、このブラウザ内（IndexedDB）に保存され、次回もこの画面に表示されます。外部には送信しません。' }),
       h('button', { type: 'button', class: 'btn btn-ghost btn-small', text: 'ブラウザに保存したデータを削除', onclick: function () {
         Promise.all([Store.del('last-good'), Store.del('last-parsed')]).then(function () {
@@ -1514,6 +1559,7 @@
     });
     $('btn-reload').addEventListener('click', function () { state.notes = []; loadFromServer(); });
     $('btn-excel').addEventListener('click', saveExcel);
+    $('btn-history').addEventListener('click', saveHistory);
     $('file-input').addEventListener('change', function (e) { loadFromFiles(e.target.files); e.target.value = ''; });
     // 画面のどこにドロップしても読み込む。ドラッグ中は受付表示を出す
     var dragDepth = 0;

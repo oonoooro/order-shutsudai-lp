@@ -92,6 +92,10 @@
     },
     // SharePoint で共有する Excel レポートのファイル名（日付を含めない。毎週同じ名前で上書きすると URL が変わらない）
     excelReportFileName: 'leasing_dashboard.xlsx',
+    // 取込結果をこのブラウザ内（IndexedDB）に保存して、次に開いたときも表示するか。
+    // 社内ファイルを SharePoint 以外に置けない運用のため、既定は保存しない（false）。
+    // その場合、前週比較に使う履歴は dashboard_data.json として SharePoint に保存し、翌週は週報と一緒にドロップする
+    storage: { keepInBrowser: false },
     // ファイル名と Project # の対応表（任意）
     sourceMappingFile: 'data/source_mapping.csv',
 
